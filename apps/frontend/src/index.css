@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* Base styles - body uses full width for layout */
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-width: 320px;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Signup dropdowns: no gray on options; teal only on hover (and selected) */
+.signup-dropdown option {
+  background: white;
+  color: #212529;
+}
+.signup-dropdown option:hover,
+.signup-dropdown option:checked,
+.signup-dropdown option[selected] {
+  background: #2293b4 !important;
+  color: white !important;
+}
+
+/* Expert signup only: hide native select arrow so only one chevron shows */
+.signup-dropdown-no-native-arrow {
+  appearance: none;
+  background-image: none;
+}
