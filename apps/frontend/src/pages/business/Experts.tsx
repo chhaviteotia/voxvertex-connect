@@ -1,7 +1,7 @@
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarItems, businessSidebarBottomItems } from '../../config/businessNav'
 
-export function PostRequirement() {
+export function Experts() {
   return (
     <DashboardLayout
       sidebarItems={businessSidebarItems}
@@ -9,10 +9,11 @@ export function PostRequirement() {
       userTypeLabel="Business"
       userDisplayName="Acme Corp"
       userSubLabel="Business Account"
-      sidebarClassName="bg-gray-50"
     >
-      <h1 className="text-2xl font-bold text-gray-900">Post Requirement</h1>
-      <p className="text-gray-500 mt-1">Post a new requirement (page content coming soon).</p>
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-2xl font-bold text-gray-900">Experts</h1>
+        <p className="mt-2 text-gray-600">Browse and connect with experts for your requirements.</p>
+      </div>
     </DashboardLayout>
   )
 }

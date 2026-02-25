@@ -1,11 +1,7 @@
-const path = require("path");
 const mongoose = require("mongoose");
-const dotenv = require("dotenv");
+const { env } = require("./env");
 
-// Load .env from backend root (db.js is in src/config/, so go up two levels to apps/backend/.env)
-dotenv.config({ path: path.resolve(__dirname, "..", "..", ".env") });
-
-let rawUri = process.env.MONGO_URI || "mongodb://localhost:27017/voxvertex";
+const rawUri = env.MONGO_URI;
 if (!process.env.MONGO_URI) {
   console.warn("MONGO_URI not set in .env; using default localhost. For Atlas, set MONGO_URI in apps/backend/.env");
 }

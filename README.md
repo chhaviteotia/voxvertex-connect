@@ -1,6 +1,9 @@
-# Turborepo starter
+# VoxVertex Connect
 
-This Turborepo starter is maintained by the Turborepo core team.
+Monorepo: **frontend** (React + Vite) and **backend** (Node + Express). Database is MongoDB by default; the backend is structured so you can migrate to AWS (DynamoDB/DocumentDB) later without changing API or frontend.
+
+- **Deploy:** See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for Vercel, AWS, and database migration.
+- **Env:** Copy [.env.example](.env.example) to `.env` and set `MONGO_URI` (and optionally `VITE_API_URL` for production frontend).
 
 ## Using this example
 
@@ -16,11 +19,9 @@ This Turborepo includes the following packages/apps:
 
 ### Apps and Packages
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+- **`apps/frontend`** – React (Vite) SPA; deploy to Vercel or S3/CloudFront.
+- **`apps/backend`** – Express API; uses MongoDB via repository layer; deploy to any Node host or AWS ECS.
+- **`packages/ui`**, **`packages/eslint-config`**, **`packages/typescript-config`** – shared tooling.
 
 Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
 

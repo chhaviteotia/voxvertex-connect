@@ -11,7 +11,7 @@ export function HeroSection() {
         Speakers, trainers, coaches, and mentors — matched through structured requirements and intelligent scoring.
       </p>
       <div className="flex flex-wrap gap-4 justify-center mb-12">
-        <a href="/post-requirement" className="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg bg-blue-600 text-white border-0 no-underline hover:bg-blue-700 transition-colors">
+        <a href="/business/create-requirement" className="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg bg-blue-600 text-white border-0 no-underline hover:bg-blue-700 transition-colors">
           Post Requirement
         </a>
         <a href="/join-expert" className="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg bg-white text-gray-800 border border-gray-200 no-underline hover:bg-gray-50 hover:border-gray-300 transition-colors">

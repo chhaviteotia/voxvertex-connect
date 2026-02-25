@@ -86,23 +86,31 @@ export function CustomSelect({
           >
             {placeholder}
           </li>
-          {options.map((opt, i) => (
-            <li
-              key={opt}
-              role="option"
-              aria-selected={value === opt}
-              onMouseEnter={() => setHoverIndex(i)}
-              onClick={() => {
-                onChange(opt)
-                setOpen(false)
-              }}
-              className={`cursor-pointer px-4 py-2.5 text-sm transition-colors ${
-                hoverIndex === i ? 'bg-[#2293b4] text-white' : 'bg-white text-gray-800'
-              }`}
-            >
-              {opt}
-            </li>
-          ))}
+          {options.map((opt, i) => {
+            const isSelected = value === opt
+            return (
+              <li
+                key={opt}
+                role="option"
+                aria-selected={isSelected}
+                onMouseEnter={() => setHoverIndex(i)}
+                onClick={() => {
+                  onChange(opt)
+                  setOpen(false)
+                }}
+                className={`cursor-pointer px-4 py-2.5 text-sm transition-colors flex items-center justify-between gap-2 ${
+                  isSelected ? 'bg-[#2293B4] text-white' : hoverIndex === i ? 'bg-[#2293B4] text-white' : 'bg-white text-gray-800'
+                }`}
+              >
+                <span>{opt}</span>
+                {isSelected && (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

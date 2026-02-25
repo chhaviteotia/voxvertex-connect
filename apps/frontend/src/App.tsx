@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Header } from './components/Header'
 import { HeroSection } from './components/hero/HeroSection'
 import { ServicesSection } from './components/services/ServicesSection'
@@ -10,11 +10,12 @@ import { SignupPage } from './pages/signup/page'
 import { BusinessSignupPage } from './pages/signup/BusinessSignupPage'
 import { ExpertSignupPage } from './pages/signup/ExpertSignupPage'
 import { Dashboard } from './pages/business/Dashboard'
-import { PostRequirement } from './pages/business/PostRequirement'
-import { MyListings } from './pages/business/MyListings'
+import { CreateRequirement } from './pages/business/CreateRequirement'
+import { Requirement } from './pages/business/Requirement'
 import { Proposals } from './pages/business/Proposals'
 import { Messages } from './pages/business/Messages'
 import { Settings } from './pages/business/Settings'
+import { Experts } from './pages/business/Experts'
 import { ExpertDashboard } from './pages/expert/Dashboard'
 import { ExpertProposals } from './pages/expert/Proposals'
 import { ExpertBrowse } from './pages/expert/Browse'
@@ -52,8 +53,10 @@ function App() {
         <Route path="/signup/expert" element={<ExpertSignupPage />} />
         <Route path="/join-expert" element={<ExpertSignupPage />} />
         <Route path="/business/dashboard" element={<Dashboard />} />
-        <Route path="/business/post-requirement" element={<PostRequirement />} />
-        <Route path="/business/listings" element={<MyListings />} />
+        <Route path="/business/post-requirement" element={<Navigate to="/business/create-requirement" replace />} />
+        <Route path="/business/create-requirement" element={<CreateRequirement />} />
+        <Route path="/business/requirement" element={<Requirement />} />
+        <Route path="/business/experts" element={<Experts />} />
         <Route path="/business/proposals" element={<Proposals />} />
         <Route path="/business/messages" element={<Messages />} />
         <Route path="/business/settings" element={<Settings />} />
