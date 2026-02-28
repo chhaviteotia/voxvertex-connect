@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarItems, businessSidebarBottomItems } from '../../config/businessNav'
 import { CustomSelect } from '../../components/CustomSelect'
+import { createRequirement as createRequirementApi, updateRequirement as updateRequirementApi, getRequirement as getRequirementApi } from '../../api/requirements'
 
 const TEAL = '#2293B4'
 
@@ -96,10 +97,27 @@ function formatTime() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
+function toSet(v: unknown): Set<string> {
+  return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+}
+function toNum(v: unknown, def: number): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : Number(v)
+  return Number.isFinite(n) ? n : def
+}
+function toStr(v: unknown): string {
+  return v != null ? String(v) : ''
+}
+function toBool(v: unknown): boolean {
+  return Boolean(v)
+}
+
 export function CreateRequirement() {
+  const { draftId } = useParams<{ draftId: string }>()
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null)
   const [lastSaved] = useState(formatTime())
   const [step, setStep] = useState(1)
+  const [draftLoadError, setDraftLoadError] = useState<string | null>(null)
+  const [draftLoading, setDraftLoading] = useState(!!draftId)
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -283,6 +301,13 @@ export function CreateRequirement() {
   const [costQualityPriority, setCostQualityPriority] = useState<string | null>('balanced')
   const [costQualityScore, setCostQualityScore] = useState(3)
 
+  const [publishing, setPublishing] = useState(false)
+  const [publishError, setPublishError] = useState('')
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [draftMessage, setDraftMessage] = useState('')
+  const [draftRequirementId, setDraftRequirementId] = useState<string | null>(null)
+  const navigate = useNavigate()
+
   const levelSliderBg = (value: number) =>
     `linear-gradient(to right, #1e293b 0%, #1e293b ${((value - 1) / 4) * 100}%, #e5e7eb ${((value - 1) / 4) * 100}%)`
   const percentSliderBg = (value: number) =>
@@ -306,6 +331,373 @@ export function CreateRequirement() {
   }
   const inputClass = 'w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-[#F7F9FC] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:border-transparent'
   const labelClass = 'block text-sm font-medium text-gray-700 mb-1.5'
+
+  useEffect(() => {
+    if (!draftId) {
+      setDraftLoading(false)
+      return
+    }
+    let cancelled = false
+    getRequirementApi(draftId)
+      .then((res) => {
+        if (cancelled || !res.success || !res.requirement) {
+          if (!cancelled) setDraftLoadError('Requirement not found.')
+          return
+        }
+        const r = res.requirement
+        if (r.status !== 'draft') {
+          if (!cancelled) setDraftLoadError('Only drafts can be edited.')
+          return
+        }
+        setDraftRequirementId(r.id)
+        const fd = (r.formData || {}) as Record<string, unknown>
+        setSelectedOutcome((fd.selectedOutcome as string) || null)
+        setSkillType(toStr(fd.skillType))
+        setSkillDomain(toStr(fd.skillDomain))
+        setCurrentLevel(toNum(fd.currentLevel, 3))
+        setTargetLevel(toNum(fd.targetLevel, 4))
+        setLearningMode(['Awareness', 'Practical', 'Applied'].includes(String(fd.learningMode)) ? (fd.learningMode as 'Awareness' | 'Practical' | 'Applied') : 'Awareness')
+        setHandsOnPractice(toBool(fd.handsOnPractice))
+        setCertificationRequired(toBool(fd.certificationRequired))
+        setSecondarySelected(toSet(fd.secondarySelected))
+        setSuccessMetrics(toStr(fd.successMetrics))
+        setRevenueType(toStr(fd.revenueType))
+        setTargetAudience(toStr(fd.targetAudience))
+        setExpectedLeads(toStr(fd.expectedLeads))
+        setExpectedConversion(toStr(fd.expectedConversion))
+        setDealSizeMin(toStr(fd.dealSizeMin))
+        setDealSizeMax(toStr(fd.dealSizeMax))
+        setFollowUpMechanism(toBool(fd.followUpMechanism))
+        setHiringGoal(toStr(fd.hiringGoal))
+        setAssessmentType(toStr(fd.assessmentType))
+        setRolesTargeted(toStr(fd.rolesTargeted))
+        setExperienceLevel(toStr(fd.experienceLevel))
+        setExpectedHires(toStr(fd.expectedHires))
+        setEmployerBrandingFocus(toBool(fd.employerBrandingFocus))
+        setPositioningGoal(toStr(fd.positioningGoal))
+        setBrandTargetAudience(toStr(fd.brandTargetAudience))
+        setBrandMessageClarity(toNum(fd.brandMessageClarity, 3))
+        setVisibilityChannels(toStr(fd.visibilityChannels))
+        setSpeakerInfluence(toNum(fd.speakerInfluence, 3))
+        setAlignmentType(toStr(fd.alignmentType))
+        setLeadershipLevel(toStr(fd.leadershipLevel))
+        setDecisionOutcomeExpected(toBool(fd.decisionOutcomeExpected))
+        setConflictResolutionRequired(toBool(fd.conflictResolutionRequired))
+        setCrossFunctionAlignment(toBool(fd.crossFunctionAlignment))
+        setProblemType(toStr(fd.problemType))
+        setProblemDefinitionClarity(toNum(fd.problemDefinitionClarity, 3))
+        setCollaborationLevel(toNum(fd.collaborationLevel, 3))
+        setSolutionExpected(toBool(fd.solutionExpected))
+        setPrototypeExpected(toBool(fd.prototypeExpected))
+        setComplianceType(toStr(fd.complianceType))
+        setRegulatoryBody(toStr(fd.regulatoryBody))
+        setMandatoryCompliance(toBool(fd.mandatoryCompliance))
+        setAuditPreparationRequired(toBool(fd.auditPreparationRequired))
+        setCertificationRequiredCompliance(toBool(fd.certificationRequiredCompliance))
+        setNetworkingType(toStr(fd.networkingType))
+        setConnectionGoal(toStr(fd.connectionGoal))
+        setRelationshipDepthExpected(toStr(fd.relationshipDepthExpected))
+        setFollowUpStructureDefined(toBool(fd.followUpStructureDefined))
+        setProductType(toStr(fd.productType))
+        setAdoptionStage(toStr(fd.adoptionStage))
+        setFeatureFocus(toStr(fd.featureFocus))
+        setUserSegment(toStr(fd.userSegment))
+        setOnboardingRequired(toBool(fd.onboardingRequired))
+        setBehaviourType(toStr(fd.behaviourType))
+        setCurrentBehaviorDescription(toStr(fd.currentBehaviorDescription))
+        setTargetBehavior(toStr(fd.targetBehavior))
+        setReinforcementRequired(toBool(fd.reinforcementRequired))
+        setMeasurementRequired(toBool(fd.measurementRequired))
+        setAudienceSelected(toSet(fd.audienceSelected))
+        setSenioritySelected(toSet(fd.senioritySelected))
+        setAudienceSize(toStr(fd.audienceSize))
+        setPriorKnowledge(toStr(fd.priorKnowledge) || 'L3')
+        setLearningCurve(toNum(fd.learningCurve, 3))
+        setJargonTolerance(toNum(fd.jargonTolerance, 3))
+        setDepthCapacity(toNum(fd.depthCapacity, 3))
+        setPaceOfDelivery(toNum(fd.paceOfDelivery, 3))
+        setFunctionalSelected(toSet(fd.functionalSelected))
+        setIndustrySelected(toSet(fd.industrySelected))
+        setResistanceLevel(toStr(fd.resistanceLevel) || 'low')
+        setDiversityOfAudience(toBool(fd.diversityOfAudience))
+        setDecisionPower(toNum(fd.decisionPower, 3))
+        setExecutionResponsibility(toNum(fd.executionResponsibility, 3))
+        setDomainExpertise(toNum(fd.domainExpertise, 3))
+        setInfluenceLevel(toNum(fd.influenceLevel, 3))
+        setLearningVsActionBias(toStr(fd.learningVsActionBias))
+        setAverageExperience(toStr(fd.averageExperience))
+        setAbstractionLevelCapacity(toNum(fd.abstractionLevelCapacity, 3))
+        setDecisionAuthority(toNum(fd.decisionAuthority, 3))
+        setToleranceForBasics(toNum(fd.toleranceForBasics, 3))
+        setTechnicalOrientation(toNum(fd.technicalOrientation, 3))
+        setBusinessOrientation(toNum(fd.businessOrientation, 3))
+        setToolUsageMaturity(toNum(fd.toolUsageMaturity, 3))
+        setProcessOrientation(toNum(fd.processOrientation, 3))
+        setRegulationLevel(toNum(fd.regulationLevel, 3))
+        setTechnicalComplexity(toNum(fd.technicalComplexity, 3))
+        setPaceOfChange(toNum(fd.paceOfChange, 3))
+        setDomainSpecificityRequired(toNum(fd.domainSpecificityRequired, 3))
+        setEngagementEffortRequired(toNum(fd.engagementEffortRequired, 3))
+        setInteractivityRequired(toNum(fd.interactivityRequired, 3))
+        setPersuasionNeeded(toNum(fd.persuasionNeeded, 3))
+        setTrustBuildingRequired(toNum(fd.trustBuildingRequired, 3))
+        setEngagementDepth(toStr(fd.engagementDepth) || '3')
+        setInteractivityLevel(toNum(fd.interactivityLevel, 50))
+        setCustomizationNeed(toNum(fd.customizationNeed, 50))
+        setDeliverablesSelected(toSet(fd.deliverablesSelected))
+        setDeliverableDetailsById((fd.deliverableDetailsById as Record<string, { format: string; deliveryTimeline: string; ownership: string; measurableOutput: boolean }>) || {})
+        setFollowUpSupportRequired(toBool(fd.followUpSupportRequired))
+        setEngagementTypeSelected((fd.engagementTypeSelected as string) || null)
+        setInteractionIntensity(toNum(fd.interactionIntensity, 3))
+        setFacilitationComplexity(toNum(fd.facilitationComplexity, 3))
+        setOutcomeOrientation(toStr(fd.outcomeOrientation))
+        setContinuityRequired(toBool(fd.continuityRequired))
+        setExpertTypeRequired(toStr(fd.expertTypeRequired))
+        setDeliveryModeSelected((fd.deliveryModeSelected as string) || null)
+        setRoomSeatingStyle(toStr(fd.roomSeatingStyle))
+        setAvSetupRequired(toStr(fd.avSetupRequired))
+        setDeliveryTechnologyDependency(toNum(fd.deliveryTechnologyDependency, 3))
+        setDeliveryEngagementDropRisk(toNum(fd.deliveryEngagementDropRisk, 3))
+        setDeliveryPlatform(toStr(fd.deliveryPlatform))
+        setBreakoutRoomsNeeded(toBool(fd.breakoutRoomsNeeded))
+        setRecordingRequired(toBool(fd.recordingRequired))
+        setTotalDurationMinutes(toStr(fd.totalDurationMinutes))
+        setFatigueRisk(toNum(fd.fatigueRisk, 3))
+        setPacingRequirement(toNum(fd.pacingRequirement, 3))
+        setDepthPossible(toNum(fd.depthPossible, 3))
+        setBreaksRequired(toBool(fd.breaksRequired))
+        setTotalSessions(toStr(fd.totalSessions) || '1')
+        setSessionPattern(toStr(fd.sessionPattern) || 'multi_session_fixed')
+        setContinuityLevel(toNum(fd.continuityLevel, 3))
+        setMultiSessionReinforcementRequired(toBool(fd.multiSessionReinforcementRequired))
+        setSchedulingComplexity(toNum(fd.schedulingComplexity, 3))
+        setDependencyBetweenSessions(toBool(fd.dependencyBetweenSessions))
+        setPreferredStartDate(toStr(fd.preferredStartDate))
+        setPreferredEndDate(toStr(fd.preferredEndDate))
+        setFlexibilityLevel(toStr(fd.flexibilityLevel))
+        setUrgencyLevel(toStr(fd.urgencyLevel))
+        setCity(toStr(fd.city))
+        setState(toStr(fd.stateRegion ?? fd.state))
+        setCountry(toStr(fd.country))
+        setVenueType(toStr(fd.venueType))
+        setVenueDetails(toStr(fd.venueDetails))
+        setPreferredTimeSlots(toSet(fd.preferredTimeSlots))
+        setBlackoutDates(toStr(fd.blackoutDates))
+        setDailyTimeWindow(toStr(fd.dailyTimeWindow))
+        setTimezone(toStr(fd.timezone))
+        setSchedulingRestrictions(toStr(fd.schedulingRestrictions))
+        setPreparationTimeSelected((fd.preparationTimeSelected as string) || null)
+        setSchedulingFlexibility(toNum(fd.schedulingFlexibility, 3))
+        setCoordinationComplexity(toNum(fd.coordinationComplexity, 3))
+        setConflictProbability(toNum(fd.conflictProbability, 3))
+        setBudgetBandSelected((fd.budgetBandSelected as string) || null)
+        setMinBudget(toNum(fd.minBudget, 100000))
+        setMaxBudget(toNum(fd.maxBudget, 250000))
+        setBudgetType(toStr(fd.budgetType))
+        setCurrency(toStr(fd.currency) || 'INR (₹)')
+        setBudgetFlexibility((fd.budgetFlexibility as string) || null)
+        setPaymentTermSelected((fd.paymentTermSelected as string) || null)
+        setCostQualityPriority((fd.costQualityPriority as string) || null)
+        setCostQualityScore(toNum(fd.costQualityScore, 3))
+        if (!cancelled) setDraftLoadError(null)
+      })
+      .catch(() => {
+        if (!cancelled) setDraftLoadError('Failed to load draft.')
+      })
+      .finally(() => {
+        if (!cancelled) setDraftLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [draftId])
+
+  function buildFormData(): Record<string, unknown> {
+    return {
+      selectedOutcome,
+      skillType,
+      skillDomain,
+      currentLevel,
+      targetLevel,
+      learningMode,
+      handsOnPractice,
+      certificationRequired,
+      secondarySelected: Array.from(secondarySelected),
+      successMetrics,
+      revenueType,
+      targetAudience,
+      expectedLeads,
+      expectedConversion,
+      dealSizeMin,
+      dealSizeMax,
+      followUpMechanism,
+      hiringGoal,
+      assessmentType,
+      rolesTargeted,
+      experienceLevel,
+      expectedHires,
+      employerBrandingFocus,
+      positioningGoal,
+      brandTargetAudience,
+      brandMessageClarity,
+      visibilityChannels,
+      speakerInfluence,
+      alignmentType,
+      leadershipLevel,
+      decisionOutcomeExpected,
+      conflictResolutionRequired,
+      crossFunctionAlignment,
+      problemType,
+      problemDefinitionClarity,
+      collaborationLevel,
+      solutionExpected,
+      prototypeExpected,
+      complianceType,
+      regulatoryBody,
+      mandatoryCompliance,
+      auditPreparationRequired,
+      certificationRequiredCompliance,
+      networkingType,
+      connectionGoal,
+      relationshipDepthExpected,
+      followUpStructureDefined,
+      productType,
+      adoptionStage,
+      featureFocus,
+      userSegment,
+      onboardingRequired,
+      behaviourType,
+      currentBehaviorDescription,
+      targetBehavior,
+      reinforcementRequired,
+      measurementRequired,
+      audienceSelected: Array.from(audienceSelected),
+      senioritySelected: Array.from(senioritySelected),
+      audienceSize,
+      priorKnowledge,
+      learningCurve,
+      jargonTolerance,
+      depthCapacity,
+      paceOfDelivery,
+      functionalSelected: Array.from(functionalSelected),
+      industrySelected: Array.from(industrySelected),
+      resistanceLevel,
+      diversityOfAudience,
+      decisionPower,
+      executionResponsibility,
+      domainExpertise,
+      influenceLevel,
+      learningVsActionBias,
+      averageExperience,
+      abstractionLevelCapacity,
+      decisionAuthority,
+      toleranceForBasics,
+      technicalOrientation,
+      businessOrientation,
+      toolUsageMaturity,
+      processOrientation,
+      regulationLevel,
+      technicalComplexity,
+      paceOfChange,
+      domainSpecificityRequired,
+      engagementEffortRequired,
+      interactivityRequired,
+      persuasionNeeded,
+      trustBuildingRequired,
+      engagementDepth,
+      interactivityLevel,
+      customizationNeed,
+      deliverablesSelected: Array.from(deliverablesSelected),
+      deliverableDetailsById,
+      followUpSupportRequired,
+      engagementTypeSelected,
+      interactionIntensity,
+      facilitationComplexity,
+      outcomeOrientation,
+      continuityRequired,
+      expertTypeRequired,
+      deliveryModeSelected,
+      roomSeatingStyle,
+      avSetupRequired,
+      deliveryTechnologyDependency,
+      deliveryEngagementDropRisk,
+      deliveryPlatform,
+      breakoutRoomsNeeded,
+      recordingRequired,
+      totalDurationMinutes,
+      fatigueRisk,
+      pacingRequirement,
+      depthPossible,
+      breaksRequired,
+      totalSessions,
+      sessionPattern,
+      continuityLevel,
+      multiSessionReinforcementRequired,
+      schedulingComplexity,
+      dependencyBetweenSessions,
+      preferredStartDate,
+      preferredEndDate,
+      flexibilityLevel,
+      urgencyLevel,
+      city,
+      stateRegion: state,
+      country,
+      venueType,
+      venueDetails,
+      preferredTimeSlots: Array.from(preferredTimeSlots),
+      blackoutDates,
+      dailyTimeWindow,
+      timezone,
+      schedulingRestrictions,
+      preparationTimeSelected,
+      schedulingFlexibility,
+      coordinationComplexity,
+      conflictProbability,
+      budgetBandSelected,
+      minBudget,
+      maxBudget,
+      budgetType,
+      currency,
+      budgetFlexibility,
+      paymentTermSelected,
+      costQualityPriority,
+      costQualityScore,
+    }
+  }
+
+  async function handlePublish() {
+    setPublishError('')
+    setPublishing(true)
+    try {
+      const formData = buildFormData()
+      const idToUpdate = draftId ?? draftRequirementId
+      if (idToUpdate) {
+        await updateRequirementApi(idToUpdate, { status: 'published', formData })
+      } else {
+        await createRequirementApi({ status: 'published', formData })
+      }
+      navigate('/business/requirement')
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : 'Failed to publish requirement.')
+      setPublishing(false)
+    }
+  }
+
+  async function handleSaveDraft() {
+    setDraftMessage('')
+    setSavingDraft(true)
+    try {
+      const formData = buildFormData()
+      const idToUpdate = draftId ?? draftRequirementId
+      if (idToUpdate) {
+        await updateRequirementApi(idToUpdate, { status: 'draft', formData })
+      } else {
+        await createRequirementApi({ status: 'draft', formData })
+      }
+      navigate('/business/requirement')
+    } catch (err) {
+      setDraftMessage(err instanceof Error ? err.message : 'Failed to save draft.')
+      setSavingDraft(false)
+    }
+  }
 
   return (
     <DashboardLayout
@@ -345,7 +737,26 @@ export function CreateRequirement() {
               <div className="h-full rounded-full bg-[#2293B4]" style={{ width: step === 1 ? '16.67%' : step === 2 ? '33.33%' : step === 3 ? '50%' : step === 4 ? '66.67%' : step === 5 ? '83.33%' : '100%' }} />
             </div>
 
-            {step === 1 && (
+            {draftLoading && (
+              <div className="flex items-center justify-center py-12">
+                <svg className="animate-spin h-8 w-8 text-[#2293B4]" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="ml-2 text-gray-600">Loading draft…</span>
+              </div>
+            )}
+
+            {draftLoadError && !draftLoading && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-6">
+                <p className="text-amber-800">{draftLoadError}</p>
+                <Link to="/business/requirement" className="inline-block mt-2 text-sm font-medium text-[#2293B4] hover:underline">
+                  Back to requirements
+                </Link>
+              </div>
+            )}
+
+            {!draftLoading && !draftLoadError && step === 1 && (
             <>
             <h2 className="text-lg font-bold text-gray-900 mb-4">What&apos;s your primary outcome?</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1261,7 +1672,7 @@ export function CreateRequirement() {
             </>
             )}
 
-            {step === 2 && (
+            {!draftLoading && !draftLoadError && step === 2 && (
               <div className="space-y-8">
                 <h2 className="text-lg font-bold text-gray-900 mb-4">Who is your audience?</h2>
                 <div className="grid grid-cols-3 gap-4">
@@ -1541,7 +1952,7 @@ export function CreateRequirement() {
               </div>
             )}
 
-            {step === 3 && (
+            {!draftLoading && !draftLoadError && step === 3 && (
               <div className="space-y-8">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 mb-2">Engagement Depth</h2>
@@ -1693,7 +2104,7 @@ export function CreateRequirement() {
               </div>
             )}
 
-            {step === 4 && (
+            {!draftLoading && !draftLoadError && step === 4 && (
               <div className="space-y-8">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 mb-2">Engagement Type</h2>
@@ -2010,24 +2421,33 @@ export function CreateRequirement() {
                   <h2 className="text-lg font-bold text-gray-900 mb-4">Timeline</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className={labelClass}>Preferred Start Date</label>
-                      <div className="relative">
-                        <input type="text" value={preferredStartDate} onChange={(e) => setPreferredStartDate(e.target.value)} placeholder="mm/dd/yyyy" className={inputClass} />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                        </span>
-                      </div>
+                      <label className={labelClass} htmlFor="preferred-start-date">Preferred Start Date</label>
+                      <input
+                        id="preferred-start-date"
+                        type="date"
+                        value={preferredStartDate}
+                        onChange={(e) => setPreferredStartDate(e.target.value)}
+                        max={preferredEndDate || undefined}
+                        className={inputClass}
+                        aria-label="Preferred start date"
+                      />
                     </div>
                     <div>
-                      <label className={labelClass}>Preferred End Date</label>
-                      <div className="relative">
-                        <input type="text" value={preferredEndDate} onChange={(e) => setPreferredEndDate(e.target.value)} placeholder="mm/dd/yyyy" className={inputClass} />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                        </span>
-                      </div>
+                      <label className={labelClass} htmlFor="preferred-end-date">Preferred End Date</label>
+                      <input
+                        id="preferred-end-date"
+                        type="date"
+                        value={preferredEndDate}
+                        onChange={(e) => setPreferredEndDate(e.target.value)}
+                        min={preferredStartDate || undefined}
+                        className={inputClass}
+                        aria-label="Preferred end date"
+                      />
                     </div>
                   </div>
+                  {preferredStartDate && preferredEndDate && preferredStartDate >= preferredEndDate && (
+                    <p className="text-sm text-red-600 mb-4">Start date must be before end date.</p>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={labelClass}>Flexibility Level</label>
@@ -2177,7 +2597,7 @@ export function CreateRequirement() {
               </div>
             )}
 
-            {step === 5 && (
+            {!draftLoading && !draftLoadError && step === 5 && (
               <div className="space-y-8">
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Budget Range</h2>
                 <p className="text-sm text-gray-500 mb-4">Select a budget band, then fine-tune with precise values</p>
@@ -2651,8 +3071,13 @@ export function CreateRequirement() {
               </div>
             )}
 
-            {step === 6 && (
+            {!draftLoading && !draftLoadError && step === 6 && (
               <div className="space-y-6">
+                {publishError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 text-sm">
+                    {publishError}
+                  </div>
+                )}
                 <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 flex gap-4">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2293B4] text-white" aria-hidden>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -2759,6 +3184,7 @@ export function CreateRequirement() {
           </aside>
         </div>
 
+        {!draftLoading && (
         <footer className="fixed bottom-0 left-0 right-0 sm:left-56 border-t border-gray-200 bg-white py-4 z-40">
           <div className="max-w-6xl mx-auto px-6 flex flex-wrap items-center justify-between gap-3">
             <button
@@ -2774,24 +3200,55 @@ export function CreateRequirement() {
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={handleSaveDraft}
+              disabled={savingDraft}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-70"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8 15 3" />
-              </svg>
-              Save Draft
+              {savingDraft ? (
+                <>
+                  <svg className="animate-spin h-[18px] w-[18px]" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8 15 3" />
+                  </svg>
+                  Save Draft
+                </>
+              )}
             </button>
+            {draftMessage && (
+              <span className="text-sm text-gray-600">{draftMessage}</span>
+            )}
             {step === 6 ? (
-              <Link
-                to="/business/requirement"
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={publishing}
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed"
                 style={{ backgroundColor: TEAL }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                Post Requirement
-              </Link>
+                {publishing ? (
+                  <>
+                    <svg className="animate-spin h-[18px] w-[18px]" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Publishing…
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    Post Requirement
+                  </>
+                )}
+              </button>
             ) : (
               <button
                 type="button"
@@ -2808,6 +3265,7 @@ export function CreateRequirement() {
             )}
           </div>
         </footer>
+        )}
 
         <div className="h-20 shrink-0" aria-hidden />
       </div>

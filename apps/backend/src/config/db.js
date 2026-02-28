@@ -1,13 +1,24 @@
 const mongoose = require("mongoose");
+const { env } = require("./env");
 
-async function connectDB() {
-  try {
-    await mongoose.connect(process.env.MONGO_URI
-    );
-    console.log("MongoDB Connected");
-  } catch (error) {
-    console.error("MongoDB connection error:", error);
-  }
+function connectDB() {
+  const uri = env.MONGO_URI;
+  return mongoose
+    .connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+    })
+    .then(() => {
+      console.log("MongoDB connected");
+    })
+    .catch((err) => {
+      console.error("MongoDB connection error:", err.message);
+      process.exit(1);
+    });
 }
 
-module.exports = { connectDB };
+function isConnected() {
+  return mongoose.connection.readyState === 1;
+}
+
+module.exports = { connectDB, isConnected };

@@ -1,7 +1,48 @@
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
+import { useAppDispatch, useAppSelector } from '../store/hooks'
+import { signIn, clearError } from '../store/slices/authSlice'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function SignInPage() {
+  const navigate = useNavigate()
+  const dispatch = useAppDispatch()
+  const { isLoading, error } = useAppSelector((state) => state.auth)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [validationError, setValidationError] = useState('')
+
+  useEffect(() => {
+    dispatch(clearError())
+  }, [dispatch])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setValidationError('')
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail) {
+      setValidationError('Email is required.')
+      return
+    }
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      setValidationError('Please enter a valid email address.')
+      return
+    }
+    if (!password) {
+      setValidationError('Password is required.')
+      return
+    }
+    const result = await dispatch(signIn({ email: trimmedEmail, password }))
+    if (signIn.fulfilled.match(result)) {
+      const user = result.payload.user
+      if (user.type === 'business') navigate('/business/dashboard')
+      else if (user.type === 'expert') navigate('/expert/dashboard')
+      else navigate('/')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#F0F4F7] font-sans text-gray-600 flex flex-col">
       <main className="flex-1 flex items-center justify-center px-6 py-12">
@@ -12,7 +53,10 @@ export function SignInPage() {
             <p className="text-sm text-gray-500">Log in to your account</p>
           </div>
 
-          <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            {(error || validationError) && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{validationError || error}</div>
+            )}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-800 mb-1.5">
                 Email
@@ -23,6 +67,8 @@ export function SignInPage() {
                 name="email"
                 autoComplete="email"
                 placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:border-transparent bg-white"
               />
             </div>
@@ -41,15 +87,18 @@ export function SignInPage() {
                 name="password"
                 autoComplete="current-password"
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:border-transparent bg-white"
               />
             </div>
             <button
               type="submit"
-              className="w-full py-3 px-4 rounded-lg text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:ring-offset-2 transition-opacity hover:opacity-90"
+              disabled={isLoading}
+              className="w-full py-3 px-4 rounded-lg text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:ring-offset-2 transition-opacity hover:opacity-90 disabled:opacity-70"
               style={{ backgroundColor: '#2293B4' }}
             >
-              Log In
+              {isLoading ? 'Signing in…' : 'Log In'}
             </button>
           </form>
 

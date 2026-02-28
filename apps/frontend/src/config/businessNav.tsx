@@ -6,7 +6,7 @@ const base = '/business'
 
 export const businessSidebarItems: SidebarItem[] = [
   { to: `${base}/dashboard`, label: 'Dashboard', icon: <IconHome /> },
-  { to: `${base}/post-requirement`, label: 'Post Requirement', icon: <IconPlus /> },
+  { to: `${base}/requirement`, label: 'Post Requirement', icon: <IconPlus /> },
   { to: `${base}/listings`, label: 'My Listings', icon: <IconDocument /> },
   { to: `${base}/proposals`, label: 'Proposals', icon: <IconEnvelope /> },
   { to: `${base}/messages`, label: 'Messages', icon: <IconMessage /> },

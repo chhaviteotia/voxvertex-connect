@@ -55,6 +55,7 @@ function App() {
         <Route path="/business/dashboard" element={<Dashboard />} />
         <Route path="/business/post-requirement" element={<Navigate to="/business/create-requirement" replace />} />
         <Route path="/business/create-requirement" element={<CreateRequirement />} />
+        <Route path="/business/create-requirement/:draftId" element={<CreateRequirement />} />
         <Route path="/business/requirement" element={<Requirement />} />
         <Route path="/business/experts" element={<Experts />} />
         <Route path="/business/proposals" element={<Proposals />} />
