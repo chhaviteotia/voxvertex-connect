@@ -19,6 +19,7 @@ import { Experts } from './pages/business/Experts'
 import { ExpertDashboard } from './pages/expert/Dashboard'
 import { ExpertProposals } from './pages/expert/Proposals'
 import { ExpertBrowse } from './pages/expert/Browse'
+import { ExpertCalendar } from './pages/expert/Calendar'
 import { ExpertProfile } from './pages/expert/Profile'
 import { ExpertEarnings } from './pages/expert/Earnings'
 import { ExpertSettings } from './pages/expert/Settings'
@@ -64,7 +65,9 @@ function App() {
         <Route path="/expert/dashboard" element={<ExpertDashboard />} />
         <Route path="/expert/proposals" element={<ExpertProposals />} />
         <Route path="/expert/browse" element={<ExpertBrowse />} />
+        <Route path="/expert/calendar" element={<ExpertCalendar />} />
         <Route path="/expert/profile" element={<ExpertProfile />} />
+        <Route path="/expert/analytics" element={<ExpertDashboard />} />
         <Route path="/expert/earnings" element={<ExpertEarnings />} />
         <Route path="/expert/settings" element={<ExpertSettings />} />
       </Routes>

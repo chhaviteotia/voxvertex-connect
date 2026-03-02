@@ -253,6 +253,7 @@ export function CreateRequirement() {
   const [deliveryTechnologyDependency, setDeliveryTechnologyDependency] = useState(3)
   const [deliveryEngagementDropRisk, setDeliveryEngagementDropRisk] = useState(3)
   const [deliveryPlatform, setDeliveryPlatform] = useState('')
+  const [meetLink, setMeetLink] = useState('')
   const [breakoutRoomsNeeded, setBreakoutRoomsNeeded] = useState(false)
   const [recordingRequired, setRecordingRequired] = useState(false)
 
@@ -620,6 +621,7 @@ export function CreateRequirement() {
       deliveryTechnologyDependency,
       deliveryEngagementDropRisk,
       deliveryPlatform,
+      meetLink,
       breakoutRoomsNeeded,
       recordingRequired,
       totalDurationMinutes,
@@ -2217,6 +2219,16 @@ export function CreateRequirement() {
                         <label className={labelClass}>Platform</label>
                         <CustomSelect id="delivery-platform-hybrid" value={deliveryPlatform} onChange={setDeliveryPlatform} options={DELIVERY_PLATFORM_OPTIONS} placeholder="Select platform" />
                       </div>
+                      <div>
+                        <label className={labelClass}>Meeting Link</label>
+                        <input
+                          type="text"
+                          value={meetLink}
+                          onChange={(e) => setMeetLink(e.target.value)}
+                          placeholder="Paste meeting URL (Zoom/Teams/Meet/etc.)"
+                          className={inputClass}
+                        />
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                           <span className="text-sm font-medium text-gray-900">Breakout Rooms Needed</span>
@@ -2263,6 +2275,18 @@ export function CreateRequirement() {
                         <label className={labelClass}>Platform</label>
                         <CustomSelect id="delivery-platform" value={deliveryPlatform} onChange={setDeliveryPlatform} options={DELIVERY_PLATFORM_OPTIONS} placeholder="Select platform" />
                       </div>
+                      {deliveryModeSelected === 'virtual' && (
+                        <div>
+                          <label className={labelClass}>Meeting Link</label>
+                          <input
+                            type="text"
+                            value={meetLink}
+                            onChange={(e) => setMeetLink(e.target.value)}
+                            placeholder="Paste meeting URL (Zoom/Teams/Meet/etc.)"
+                            className={inputClass}
+                          />
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                           <span className="text-sm font-medium text-gray-900">Breakout Rooms Needed</span>
@@ -2478,15 +2502,19 @@ export function CreateRequirement() {
                   </div>
                 </div>
 
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 mb-4">Venue Type</h2>
-                  <CustomSelect id="venue-type" value={venueType} onChange={setVenueType} options={VENUE_TYPE_OPTIONS} placeholder="Select venue type" />
-                </div>
+                {deliveryModeSelected !== 'virtual' && (
+                  <>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900 mb-4">Venue Type</h2>
+                      <CustomSelect id="venue-type" value={venueType} onChange={setVenueType} options={VENUE_TYPE_OPTIONS} placeholder="Select venue type" />
+                    </div>
 
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 mb-4">Venue Details (Optional)</h2>
-                  <textarea value={venueDetails} onChange={(e) => setVenueDetails(e.target.value)} placeholder="e.g., Conference room on 5th floor, capacity 30" rows={3} className={`${inputClass} resize-y`} />
-                </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900 mb-4">Venue Details (Optional)</h2>
+                      <textarea value={venueDetails} onChange={(e) => setVenueDetails(e.target.value)} placeholder="e.g., Conference room on 5th floor, capacity 30" rows={3} className={`${inputClass} resize-y`} />
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 mb-2">Time Constraints</h2>

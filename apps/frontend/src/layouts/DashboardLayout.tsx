@@ -16,6 +16,8 @@ interface DashboardLayoutProps {
   accentColor?: 'blue' | 'green'
   sidebarFooter?: React.ReactNode
   sidebarClassName?: string
+  /** Extra class for main content area (e.g. expert: "pl-10" for more left padding) */
+  mainClassName?: string
 }
 
 export function DashboardLayout({
@@ -23,9 +25,11 @@ export function DashboardLayout({
   sidebarItems,
   sidebarBottomItems,
   userDisplayName,
+  userSubLabel,
   accentColor = 'blue',
   sidebarFooter,
   sidebarClassName,
+  mainClassName,
 }: DashboardLayoutProps) {
   return (
     <div className="h-screen flex overflow-hidden bg-gray-50">
@@ -33,13 +37,14 @@ export function DashboardLayout({
         items={sidebarItems}
         bottomItems={sidebarBottomItems}
         userDisplayName={userDisplayName}
+        userSubLabel={userSubLabel}
         accentColor={accentColor}
         footer={sidebarFooter}
         className={sidebarClassName}
       />
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <Header userDisplayName={userDisplayName} />
-        <main className="flex-1 overflow-auto p-6 min-w-0">
+        <main className={`flex-1 overflow-auto py-6 px-6 min-w-0 ${mainClassName ?? ''}`}>
           {children}
         </main>
       </div>

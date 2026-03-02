@@ -79,6 +79,15 @@ export function Header({
               >
                 Dashboard
               </Link>
+              {location.pathname.startsWith('/expert') && (
+                <Link
+                  to="/expert/settings"
+                  onClick={() => setOpen(false)}
+                  className="block px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 no-underline"
+                >
+                  Settings
+                </Link>
+              )}
               <div className="my-1 border-t border-gray-200" />
               <Link
                 to="/signin"
