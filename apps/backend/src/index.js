@@ -14,8 +14,13 @@ connectDB()
     app.get("/", (req, res) => res.send("VoxVertex Connect API"));
 
     app.use("/api/auth", require("./routes/auth"));
+    app.use("/api/conversations", require("./routes/conversations"));
     app.use("/api/business/settings", require("./routes/businessSettings"));
     app.use("/api/business/requirements", require("./routes/requirements"));
+    app.use("/api/expert/profile", require("./routes/expertProfile"));
+    app.use("/api/expert/proposals", require("./routes/expertProposals"));
+    app.use("/api/expert/calendar", require("./routes/expertCalendar"));
+    app.use("/api/expert/opportunities", require("./routes/expertOpportunities"));
 
     app.listen(port, () => {
       console.log(`Server running at http://localhost:${port}`);

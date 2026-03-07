@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
@@ -13,8 +13,31 @@ import {
   IconClock,
   IconSearch,
 } from '../../components/layout/DashboardIcons'
+import { getOpportunities, type OpportunityItem } from '../../api/expertOpportunities'
 
 const TEAL = '#008C9E'
+
+/** Same as business Requirement page – so heading matches published requirement list */
+const OUTCOME_TITLES: Record<string, string> = {
+  'skill-development': 'Skill Development',
+  'revenue-generation': 'Revenue Generation',
+  'hiring-talent': 'Hiring & Talent',
+  'brand-positioning': 'Brand Positioning',
+  'leadership-alignment': 'Leadership Alignment',
+  'innovation-problem-solving': 'Innovation & Problem Solving',
+  'compliance-risk': 'Compliance & Risk',
+  'community-networking': 'Community & Networking',
+  'product-adoption': 'Product Adoption',
+  'behavior-change': 'Behavior Change',
+}
+
+function getTitleFromFormData(formData: Record<string, unknown>): string {
+  const outcome = formData?.selectedOutcome as string | undefined
+  if (outcome && OUTCOME_TITLES[outcome]) return OUTCOME_TITLES[outcome]
+  const audience = formData?.audienceSelected as string[] | undefined
+  if (Array.isArray(audience) && audience.length > 0) return `${audience.slice(0, 2).join(', ')} engagement`
+  return 'Expert requirement'
+}
 
 type Opportunity = {
   id: string
@@ -30,52 +53,95 @@ type Opportunity = {
   timeline: string
 }
 
-const OPPORTUNITIES: Opportunity[] = [
-  {
-    id: '1',
-    title: 'AI Training for Sales Team',
-    company: 'TechCorp India',
-    match: 92,
-    timeAgo: '1d ago',
-    objective: 'Skill Development',
-    audience: 'Sales Teams (25-30 people)',
-    typeDuration: 'Workshop • 2 days',
-    budget: '₹1,50,000 - ₹2,50,000',
-    location: 'Online • Remote',
-    timeline: 'Next 2 weeks',
-  },
-  {
-    id: '2',
-    title: 'Leadership Development Program',
-    company: 'Manufacturing Ltd',
-    match: 88,
-    timeAgo: '2d ago',
-    objective: 'Leadership Development',
-    audience: 'Middle Management',
-    typeDuration: 'Training Series',
-    budget: '₹2,00,000 - ₹3,50,000',
-    location: 'Hybrid • Mumbai',
-    timeline: 'Next month',
-  },
-  {
-    id: '3',
-    title: 'Executive Coaching Program',
-    company: 'Startup Inc',
-    match: 78,
-    timeAgo: '5d ago',
-    objective: 'Leadership Development',
-    audience: 'Executives (3-5 people)',
-    typeDuration: 'Coaching • 8 weeks',
-    budget: '₹1,00,000 - ₹2,00,000',
-    location: 'Hybrid • Delhi NCR',
-    timeline: 'Starting next month',
-  },
-]
+function timeAgo(createdAt: string): string {
+  const d = new Date(createdAt)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return d.toLocaleDateString()
+}
+
+function toTitleCase(s: string): string {
+  return s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function mapItemToOpportunity(item: OpportunityItem): Opportunity {
+  const fd = item.formData as Record<string, unknown>
+  const selectedOutcome = (fd.selectedOutcome as string) || ''
+  const audienceArr = (fd.audienceSelected as string[]) || []
+  const engagementType = (fd.engagementTypeSelected as string) || ''
+  const totalDurationMinutes = (fd.totalDurationMinutes as string) || ''
+  const totalSessions = (fd.totalSessions as string) || '1'
+  const minBudget = typeof fd.minBudget === 'number' ? fd.minBudget : 0
+  const maxBudget = typeof fd.maxBudget === 'number' ? fd.maxBudget : 0
+  const city = (fd.city as string) || ''
+  const stateRegion = (fd.stateRegion as string) || ''
+  const country = (fd.country as string) || ''
+  const deliveryMode = (fd.deliveryModeSelected as string) || ''
+  const startDate = (fd.preferredStartDate as string) || ''
+  const endDate = (fd.preferredEndDate as string) || ''
+
+  const objective = selectedOutcome ? toTitleCase(selectedOutcome) : '—'
+  const audience = audienceArr.length > 0 ? audienceArr.slice(0, 3).join(', ') : '—'
+  let typeDuration = engagementType ? toTitleCase(engagementType) : ''
+  if (totalDurationMinutes) {
+    const mins = parseInt(totalDurationMinutes, 10)
+    if (Number.isFinite(mins) && mins >= 60) typeDuration += ` • ${Math.round(mins / 60)} hrs`
+    else if (Number.isFinite(mins)) typeDuration += ` • ${mins} min`
+  }
+  if (totalSessions && totalSessions !== '1') typeDuration += ` • ${totalSessions} sessions`
+  if (!typeDuration) typeDuration = '—'
+
+  let budget = '—'
+  if (minBudget > 0 || maxBudget > 0) {
+    budget = `₹${minBudget.toLocaleString('en-IN')} - ₹${maxBudget.toLocaleString('en-IN')}`
+  }
+
+  let location = '—'
+  if (deliveryMode) location = toTitleCase(deliveryMode)
+  if (city || stateRegion || country) {
+    const parts = [city, stateRegion, country].filter(Boolean)
+    location = parts.length > 0 ? parts.join(', ') : location
+  }
+
+  let timeline = '—'
+  if (startDate || endDate) {
+    const format = (s: string) => {
+      if (!s || !s.match(/^\d{4}-\d{2}-\d{2}/)) return ''
+      const [y, m, d] = s.slice(0, 10).split('-')
+      return `${d}/${m}/${y}`
+    }
+    timeline = [format(startDate), format(endDate)].filter(Boolean).join(' – ') || 'See details'
+  }
+
+  const title = getTitleFromFormData(fd)
+
+  return {
+    id: item.id,
+    title,
+    company: item.companyName || 'Company',
+    match: 85,
+    timeAgo: timeAgo(item.createdAt),
+    objective,
+    audience,
+    typeDuration,
+    budget,
+    location,
+    timeline,
+  }
+}
 
 function getMatchBadgeStyle(match: number) {
   if (match >= 85) return { bg: '#22c55e' } // green
   return { bg: '#f97316' } // orange for lower match
 }
+
+const PAGE_SIZE = 20
 
 export function ExpertBrowse() {
   const user = useAppSelector(selectUser) as { name?: string; email?: string } | null
@@ -86,6 +152,59 @@ export function ExpertBrowse() {
   const [domain, setDomain] = useState('All Domains')
   const [budget, setBudget] = useState('All Budgets')
   const [type, setType] = useState('All Types')
+
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [skip, setSkip] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getOpportunities({ limit: PAGE_SIZE, skip: 0 })
+      .then((res) => {
+        if (cancelled || !res.success) return
+        const list = (res.data || []).map(mapItemToOpportunity)
+        setOpportunities(list)
+        setHasMore(list.length >= PAGE_SIZE)
+        setSkip(list.length)
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load opportunities')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const loadMore = () => {
+    setLoadingMore(true)
+    getOpportunities({ limit: PAGE_SIZE, skip })
+      .then((res) => {
+        if (!res.success) return
+        const list = (res.data || []).map(mapItemToOpportunity)
+        setOpportunities((prev) => [...prev, ...list])
+        setHasMore(list.length >= PAGE_SIZE)
+        setSkip((s) => s + list.length)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
+  }
+
+  const filtered = opportunities.filter((opp) => {
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      if (!opp.title.toLowerCase().includes(q) &&
+          !opp.company.toLowerCase().includes(q) &&
+          !opp.objective.toLowerCase().includes(q) &&
+          !opp.audience.toLowerCase().includes(q)) return false
+    }
+    return true
+  })
 
   return (
     <DashboardLayout
@@ -100,6 +219,17 @@ export function ExpertBrowse() {
       <div className="max-w-5xl mx-auto pb-8 pt-6 px-4" style={{ backgroundColor: '#F7F7F7' }}>
         <h1 className="text-2xl font-bold text-gray-900">Opportunities</h1>
         <p className="text-sm text-gray-500 mt-0.5">Requirements matched to your expertise</p>
+
+        {loading && (
+          <div className="mt-6 py-8 text-center text-gray-500 text-sm">
+            Loading opportunities…
+          </div>
+        )}
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mt-6 mb-6">
@@ -140,7 +270,12 @@ export function ExpertBrowse() {
 
         {/* Opportunity cards */}
         <div className="space-y-4">
-          {OPPORTUNITIES.map((opp) => {
+          {!loading && filtered.length === 0 && !error && (
+            <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
+              No opportunities yet. When businesses publish requirements, they will appear here.
+            </div>
+          )}
+          {filtered.map((opp) => {
             const matchStyle = getMatchBadgeStyle(opp.match)
             return (
               <div
@@ -215,6 +350,7 @@ export function ExpertBrowse() {
                   </Link>
                   <Link
                     to={`/expert/browse/${opp.id}/propose`}
+                    state={{ title: opp.title, company: opp.company }}
                     className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 no-underline"
                   >
                     Submit Proposal
@@ -225,14 +361,18 @@ export function ExpertBrowse() {
           })}
         </div>
 
-        <div className="flex justify-center mt-8">
-          <button
-            type="button"
-            className="px-6 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200"
-          >
-            Load More Opportunities
-          </button>
-        </div>
+        {!loading && hasMore && opportunities.length > 0 && (
+          <div className="flex justify-center mt-8">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-6 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-70"
+            >
+              {loadingMore ? 'Loading…' : 'Load More Opportunities'}
+            </button>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )

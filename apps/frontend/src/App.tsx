@@ -12,6 +12,7 @@ import { ExpertSignupPage } from './pages/signup/ExpertSignupPage'
 import { Dashboard } from './pages/business/Dashboard'
 import { CreateRequirement } from './pages/business/CreateRequirement'
 import { Requirement } from './pages/business/Requirement'
+import { RequirementDetail } from './pages/business/RequirementDetail'
 import { Proposals } from './pages/business/Proposals'
 import { Messages } from './pages/business/Messages'
 import { Settings } from './pages/business/Settings'
@@ -19,7 +20,9 @@ import { Experts } from './pages/business/Experts'
 import { ExpertDashboard } from './pages/expert/Dashboard'
 import { ExpertProposals } from './pages/expert/Proposals'
 import { ExpertBrowse } from './pages/expert/Browse'
+import { SubmitProposal } from './pages/expert/SubmitProposal'
 import { ExpertCalendar } from './pages/expert/Calendar'
+import { ExpertMessages } from './pages/expert/Messages'
 import { ExpertProfile } from './pages/expert/Profile'
 import { ExpertEarnings } from './pages/expert/Earnings'
 import { ExpertSettings } from './pages/expert/Settings'
@@ -58,6 +61,7 @@ function App() {
         <Route path="/business/create-requirement" element={<CreateRequirement />} />
         <Route path="/business/create-requirement/:draftId" element={<CreateRequirement />} />
         <Route path="/business/requirement" element={<Requirement />} />
+        <Route path="/business/requirement/:requirementId" element={<RequirementDetail />} />
         <Route path="/business/experts" element={<Experts />} />
         <Route path="/business/proposals" element={<Proposals />} />
         <Route path="/business/messages" element={<Messages />} />
@@ -65,7 +69,9 @@ function App() {
         <Route path="/expert/dashboard" element={<ExpertDashboard />} />
         <Route path="/expert/proposals" element={<ExpertProposals />} />
         <Route path="/expert/browse" element={<ExpertBrowse />} />
+        <Route path="/expert/browse/:opportunityId/propose" element={<SubmitProposal />} />
         <Route path="/expert/calendar" element={<ExpertCalendar />} />
+        <Route path="/expert/messages" element={<ExpertMessages />} />
         <Route path="/expert/profile" element={<ExpertProfile />} />
         <Route path="/expert/analytics" element={<ExpertDashboard />} />
         <Route path="/expert/earnings" element={<ExpertEarnings />} />

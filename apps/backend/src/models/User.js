@@ -56,6 +56,8 @@ const userSchema = new mongoose.Schema(
     notifMessages: { type: Boolean, default: true },
     notifWeeklyDigest: { type: Boolean, default: false },
     avatarUrl: { type: String, trim: true, default: "" },
+    /** Expert profile (Identity, Capability, Experience, Delivery, Pricing, Availability). Only for type=expert. */
+    expertProfile: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );

@@ -22,10 +22,15 @@ async function countByUser(userId, status) {
   throw new Error("Requirement repository: AWS adapter not implemented.");
 }
 
+async function listPublished() {
+  return [];
+}
+
 module.exports = {
   create,
   listByUser,
   findById,
   updateById,
   countByUser,
+  listPublished,
 };

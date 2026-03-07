@@ -31,7 +31,7 @@ async function createRequirement(req, res) {
     return res.status(201).json({
       success: true,
       requirement: {
-        id: requirement._id,
+        id: requirement._id != null ? requirement._id.toString() : requirement._id,
         status: requirement.status,
         formData: requirement.formData,
         createdAt: requirement.createdAt,
@@ -64,7 +64,7 @@ async function listRequirements(req, res) {
     return res.json({
       success: true,
       requirements: requirements.map((r) => ({
-        id: r._id,
+        id: r._id != null ? r._id.toString() : r._id,
         status: r.status,
         formData: r.formData,
         createdAt: r.createdAt,
@@ -97,7 +97,7 @@ async function getRequirement(req, res) {
     return res.json({
       success: true,
       requirement: {
-        id: requirement._id,
+        id: requirement._id != null ? requirement._id.toString() : requirement._id,
         status: requirement.status,
         formData: requirement.formData,
         createdAt: requirement.createdAt,
@@ -137,7 +137,7 @@ async function updateRequirement(req, res) {
     return res.json({
       success: true,
       requirement: {
-        id: requirement._id,
+        id: requirement._id != null ? requirement._id.toString() : requirement._id,
         status: requirement.status,
         formData: requirement.formData,
         createdAt: requirement.createdAt,

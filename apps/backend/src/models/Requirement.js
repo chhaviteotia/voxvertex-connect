@@ -25,5 +25,6 @@ const requirementSchema = new mongoose.Schema(
 );
 
 requirementSchema.index({ createdBy: 1, createdAt: -1 });
+requirementSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Requirement", requirementSchema);

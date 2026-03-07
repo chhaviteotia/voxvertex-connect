@@ -1,11 +1,62 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
 import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
 import { IconCalendar, IconClock, IconMapPin, IconVideo } from '../../components/layout/DashboardIcons'
+import {
+  getAvailability,
+  createAvailability,
+  deleteAvailability,
+  getSessions,
+  getCalendarStats,
+  updateSessionStatus,
+  type AvailabilityWindow,
+  type ScheduledSession,
+} from '../../api/expertCalendar'
 
 const TEAL = '#008C9E'
+
+function formatWindowDate(d: string): string {
+  const date = new Date(d)
+  const mon = date.toLocaleString('en-US', { month: 'short' })
+  const day = date.getDate()
+  const year = date.getFullYear()
+  return `${mon} ${day}, ${year}`
+}
+
+/** Format date as DD/MM/YYYY for availability window inputs */
+function toDDMMYYYY(d: Date): string {
+  const day = String(d.getDate()).padStart(2, '0')
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const y = d.getFullYear()
+  return `${day}/${m}/${y}`
+}
+
+/** Parse DD/MM/YYYY string to Date, or null if invalid */
+function parseDDMMYYYY(s: string): Date | null {
+  const trimmed = s.trim()
+  if (!trimmed) return null
+  const parts = trimmed.split('/')
+  if (parts.length !== 3) return null
+  const day = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10) - 1
+  const year = parseInt(parts[2], 10)
+  if (isNaN(day) || isNaN(month) || isNaN(year) || month < 0 || month > 11) return null
+  const date = new Date(year, month, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null
+  return date
+}
+
+/** Convert DD/MM/YYYY to YYYY-MM-DD for API */
+function ddmmToApi(s: string): string | null {
+  const d = parseDDMMYYYY(s)
+  if (!d) return null
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -39,6 +90,45 @@ export function ExpertCalendar() {
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth() + 1)
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+
+  const [windows, setWindows] = useState<AvailabilityWindow[]>([])
+  const [sessions, setSessions] = useState<ScheduledSession[]>([])
+  const [stats, setStats] = useState<{ activeWindows: number; upcomingSessions: number; pending: number; completed: number } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [windowStart, setWindowStart] = useState(toDDMMYYYY(today))
+  const [windowEnd, setWindowEnd] = useState(toDDMMYYYY(today))
+  const [windowNote, setWindowNote] = useState('')
+  const [savingWindow, setSavingWindow] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmingSessionId, setConfirmingSessionId] = useState<string | null>(null)
+  const startDatePickerRef = useRef<HTMLInputElement>(null)
+  const endDatePickerRef = useRef<HTMLInputElement>(null)
+
+  const loadData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [availRes, sessionsRes, statsRes] = await Promise.all([
+        getAvailability(),
+        getSessions(),
+        getCalendarStats(),
+      ])
+      if (availRes.success) setWindows(availRes.data)
+      if (sessionsRes.success) setSessions(sessionsRes.data)
+      if (statsRes.success) setStats(statsRes.data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load calendar data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
 
   const calendarGrid = getCalendarGrid(viewYear, viewMonth)
   const monthLabel = `${MONTH_NAMES[viewMonth - 1]} ${viewYear}`
@@ -66,11 +156,90 @@ export function ExpertCalendar() {
     setViewMonth(today.getMonth() + 1)
   }
 
-  /** Demo: highlight like March 2026 when viewing that month */
-  const isDemoMonth = viewYear === 2026 && viewMonth === 3
-  const isSelected = (day: number) => isDemoMonth && day === 2
-  const isAvailable = (day: number) => isDemoMonth && day >= 10 && day <= 14
-  const isScheduled = (day: number) => isDemoMonth && (day === 15 || day === 20)
+  const isDayInWindow = (year: number, month: number, day: number, w: AvailabilityWindow) => {
+    const d = new Date(year, month - 1, day)
+    const start = new Date(w.startDate)
+    const end = new Date(w.endDate)
+    start.setHours(0, 0, 0, 0)
+    end.setHours(23, 59, 59, 999)
+    d.setHours(0, 0, 0, 0)
+    return d >= start && d <= end
+  }
+
+  const isDayInSession = (year: number, month: number, day: number, s: ScheduledSession) => {
+    const d = new Date(year, month - 1, day)
+    const sessionDate = new Date(s.scheduledDate)
+    d.setHours(0, 0, 0, 0)
+    sessionDate.setHours(0, 0, 0, 0)
+    return d.getTime() === sessionDate.getTime()
+  }
+
+  const isSelected = (day: number) => selectedDay !== null && selectedDay === day
+  const isAvailable = (day: number) =>
+    windows.some((w) => isDayInWindow(viewYear, viewMonth, day, w))
+  const isScheduled = (day: number) =>
+    sessions.some((s) => isDayInSession(viewYear, viewMonth, day, s))
+
+  const handleSaveWindow = async () => {
+    const startStr = ddmmToApi(windowStart)
+    const endStr = ddmmToApi(windowEnd)
+    if (!startStr || !endStr) {
+      setError('Please enter dates in DD/MM/YYYY format')
+      return
+    }
+    const start = new Date(startStr)
+    const end = new Date(endStr)
+    if (end < start) {
+      setError('End date must be on or after start date')
+      return
+    }
+    setSavingWindow(true)
+    setError(null)
+    try {
+      const res = await createAvailability({
+        startDate: startStr,
+        endDate: endStr,
+        note: windowNote.trim() || undefined,
+      })
+      if (res.success) {
+        await loadData()
+        setShowAddWindow(false)
+        setWindowNote('')
+        setWindowStart(toDDMMYYYY(today))
+        setWindowEnd(toDDMMYYYY(today))
+      }
+    } catch {
+      setError('Failed to save availability window')
+    } finally {
+      setSavingWindow(false)
+    }
+  }
+
+  const handleDeleteWindow = async (id: string) => {
+    setDeletingId(id)
+    try {
+      await deleteAvailability(id)
+      await loadData()
+    } catch {
+      setError('Failed to delete window')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleConfirmSession = async (id: string) => {
+    setConfirmingSessionId(id)
+    try {
+      await updateSessionStatus(id, 'confirmed')
+      await loadData()
+    } catch {
+      setError('Failed to confirm session')
+    } finally {
+      setConfirmingSessionId(null)
+    }
+  }
+
+  const upcomingSessions = sessions.filter((s) => new Date(s.scheduledDate) >= new Date())
 
   return (
     <DashboardLayout
@@ -87,6 +256,17 @@ export function ExpertCalendar() {
           <h1 className="text-2xl font-bold text-gray-900">Calendar &amp; Availability</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage your availability windows and scheduled sessions</p>
         </div>
+
+        {loading && (
+          <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 text-center text-gray-500 text-sm">
+            Loading calendar…
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         {/* Sync with External Calendars */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -204,6 +384,7 @@ export function ExpertCalendar() {
                   <div key={key} className="flex flex-col items-center justify-center p-0.5">
                     <button
                       type="button"
+                      onClick={() => setSelectedDay(day)}
                       className={`flex flex-col items-center justify-center rounded-lg w-9 min-h-9 text-sm font-medium ${
                         selected ? 'border-2 bg-white text-gray-900' : ''
                       } ${available ? 'bg-[#D1FAE5] text-gray-900' : ''} ${
@@ -263,30 +444,66 @@ export function ExpertCalendar() {
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date</label>
-                        <div className="relative">
+                        <div className="relative flex items-center">
                           <input
                             type="text"
-                            value="mm/dd/yyyy"
-                            readOnly
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-400"
+                            value={windowStart}
+                            onChange={(e) => setWindowStart(e.target.value)}
+                            placeholder="DD/MM/YYYY"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 placeholder-gray-400"
                           />
-                          <span className="absolute inset-y-0 right-3 flex items-center text-gray-500 text-xs">
+                          <input
+                            ref={startDatePickerRef}
+                            type="date"
+                            value={ddmmToApi(windowStart) || ''}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              if (v) setWindowStart(toDDMMYYYY(new Date(v + 'T12:00:00')))
+                            }}
+                            className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                            aria-hidden
+                            tabIndex={-1}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => startDatePickerRef.current?.showPicker?.() ?? startDatePickerRef.current?.click()}
+                            className="absolute right-2 flex items-center justify-center w-8 h-8 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                            aria-label="Choose start date"
+                          >
                             <IconCalendar className="w-4 h-4" />
-                          </span>
+                          </button>
                         </div>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-1">End Date</label>
-                        <div className="relative">
+                        <div className="relative flex items-center">
                           <input
                             type="text"
-                            value="mm/dd/yyyy"
-                            readOnly
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-400"
+                            value={windowEnd}
+                            onChange={(e) => setWindowEnd(e.target.value)}
+                            placeholder="DD/MM/YYYY"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 placeholder-gray-400"
                           />
-                          <span className="absolute inset-y-0 right-3 flex items-center text-gray-500 text-xs">
+                          <input
+                            ref={endDatePickerRef}
+                            type="date"
+                            value={ddmmToApi(windowEnd) || ''}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              if (v) setWindowEnd(toDDMMYYYY(new Date(v + 'T12:00:00')))
+                            }}
+                            className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                            aria-hidden
+                            tabIndex={-1}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => endDatePickerRef.current?.showPicker?.() ?? endDatePickerRef.current?.click()}
+                            className="absolute right-2 flex items-center justify-center w-8 h-8 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                            aria-label="Choose end date"
+                          >
                             <IconCalendar className="w-4 h-4" />
-                          </span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -296,6 +513,8 @@ export function ExpertCalendar() {
                       </label>
                       <input
                         type="text"
+                        value={windowNote}
+                        onChange={(e) => setWindowNote(e.target.value)}
                         placeholder="e.g., Available for workshops only"
                         className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 placeholder-gray-400"
                       />
@@ -304,10 +523,21 @@ export function ExpertCalendar() {
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+                      disabled={
+                        savingWindow ||
+                        !windowStart ||
+                        !windowEnd ||
+                        !ddmmToApi(windowStart) ||
+                        !ddmmToApi(windowEnd) ||
+                        (parseDDMMYYYY(windowEnd) !== null &&
+                          parseDDMMYYYY(windowStart) !== null &&
+                          parseDDMMYYYY(windowEnd)! < parseDDMMYYYY(windowStart)!)
+                      }
+                      onClick={handleSaveWindow}
+                      className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                       style={{ backgroundColor: TEAL }}
                     >
-                      Save Window
+                      {savingWindow ? 'Saving…' : 'Save Window'}
                     </button>
                     <button
                       type="button"
@@ -320,21 +550,37 @@ export function ExpertCalendar() {
                 </div>
               )}
 
-              {/* Existing window list */}
-              <div className="rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#E0ECFF] text-[#4C6FFF]">
-                    <IconCalendar />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Mar 10, 2026 - Mar 14, 2026</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Available for workshops</p>
+              {/* Window list from API */}
+              {windows.length === 0 && !showAddWindow && (
+                <p className="text-sm text-gray-500 py-2">No availability windows yet. Click Add Window to create one.</p>
+              )}
+              {windows.map((w) => (
+                <div
+                  key={w.id}
+                  className="rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-3 mt-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#E0ECFF] text-[#4C6FFF]">
+                      <IconCalendar className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatWindowDate(w.startDate)} - {formatWindowDate(w.endDate)}
+                      </p>
+                      {w.note && <p className="text-xs text-gray-500 mt-0.5">{w.note}</p>}
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    disabled={deletingId === w.id}
+                    onClick={() => handleDeleteWindow(w.id)}
+                    className="text-gray-400 hover:text-gray-600 text-lg leading-none disabled:opacity-50"
+                    aria-label="Delete window"
+                  >
+                    ×
+                  </button>
                 </div>
-                <button type="button" className="text-gray-400 hover:text-gray-600 text-lg leading-none">
-                  ×
-                </button>
-              </div>
+              ))}
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
@@ -342,19 +588,19 @@ export function ExpertCalendar() {
               <div className="grid grid-cols-2 gap-y-3 text-sm">
                 <div>
                   <p className="text-xs text-gray-500">Active Windows</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">1</p>
+                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.activeWindows ?? 0}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Upcoming Sessions</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">2</p>
+                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.upcomingSessions ?? 0}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Pending</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">1</p>
+                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.pending ?? 0}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Completed</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">0</p>
+                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.completed ?? 0}</p>
                 </div>
               </div>
             </div>
@@ -364,98 +610,95 @@ export function ExpertCalendar() {
         {/* Scheduled Sessions */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-base font-semibold text-gray-900 mb-1">Scheduled Sessions</h2>
-          <p className="text-xs text-gray-500 mb-4">Upcoming (2)</p>
+          <p className="text-xs text-gray-500 mb-4">Upcoming ({upcomingSessions.length})</p>
 
+          {upcomingSessions.length === 0 && (
+            <p className="text-sm text-gray-500 py-2">No upcoming sessions.</p>
+          )}
           <div className="space-y-4">
-            {/* Session 1 */}
-            <div className="rounded-xl border border-gray-200 px-4 py-4">
-              <div className="mb-3">
-                <p className="text-sm font-semibold text-gray-900 inline-flex items-center gap-2 flex-wrap">
-                  TechCorp India
-                  <span className="inline-flex items-center gap-1 rounded-md bg-[#e6ffe6] px-2.5 py-0.5 text-xs font-medium text-[#28a745]">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                    confirmed
-                  </span>
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Workshop (Single Day)</p>
-              </div>
+            {upcomingSessions.map((s) => (
+              <div key={s.id} className="rounded-xl border border-gray-200 px-4 py-4">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold text-gray-900 inline-flex items-center gap-2 flex-wrap">
+                    {s.companyName}
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-md px-2.5 py-0.5 text-xs font-medium ${
+                        s.status === 'confirmed'
+                          ? 'bg-[#e6ffe6] text-[#28a745]'
+                          : 'bg-orange-50 text-orange-600'
+                      }`}
+                    >
+                      {s.status === 'confirmed' ? (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          confirmed
+                        </>
+                      ) : (
+                        <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
+                          pending
+                        </>
+                      )}
+                    </span>
+                  </p>
+                  {s.sessionType && <p className="text-xs text-gray-500 mt-0.5">{s.sessionType}</p>}
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <IconCalendar className="w-4 h-4 text-gray-500 shrink-0" />
-                  <span>Mar 15, 2026</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <IconCalendar className="w-4 h-4 text-gray-500 shrink-0" />
+                    <span>{formatWindowDate(s.scheduledDate)}</span>
+                  </div>
+                  {(s.startTime || s.endTime) && (
+                    <div className="flex items-center gap-2">
+                      <IconClock className="w-4 h-4 text-gray-500 shrink-0" />
+                      <span>{[s.startTime, s.endTime].filter(Boolean).join(' - ') || '—'}</span>
+                    </div>
+                  )}
+                  {s.location && (
+                    <div className="flex items-center gap-2">
+                      {s.location.toLowerCase().includes('online') || s.location.toLowerCase().includes('zoom') ? (
+                        <IconVideo className="w-4 h-4 text-gray-500 shrink-0" />
+                      ) : (
+                        <IconMapPin className="w-4 h-4 text-gray-500 shrink-0" />
+                      )}
+                      <span>{s.location}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <IconClock className="w-4 h-4 text-gray-500 shrink-0" />
-                  <span>10:00 AM - 2:00 PM</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <IconVideo className="w-4 h-4 text-gray-500 shrink-0" />
-                  <span>Online - Zoom</span>
-                </div>
-              </div>
 
-              <div className="flex flex-wrap gap-2 mt-5">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
-                >
-                  <IconVideo className="w-4 h-4 text-gray-600 shrink-0" />
-                  Join Meeting
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-
-            {/* Session 2 */}
-            <div className="rounded-xl border border-gray-200 px-4 py-4">
-              <div className="mb-3">
-                <p className="text-sm font-semibold text-gray-900 inline-flex items-center gap-2 flex-wrap">
-                  Startup Hub
-                  <span className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-600">
-                    <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-                    pending
-                  </span>
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Advisory Session</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <IconCalendar className="w-4 h-4 text-gray-500 shrink-0" />
-                  <span>Mar 20, 2026</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <IconClock className="w-4 h-4 text-gray-500 shrink-0" />
-                  <span>2:00 PM - 4:00 PM</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <IconMapPin className="w-4 h-4 text-gray-500 shrink-0" />
-                  <span>Bangalore, India</span>
+                <div className="flex flex-wrap gap-2 mt-5">
+                  {s.status === 'confirmed' && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                    >
+                      <IconVideo className="w-4 h-4 text-gray-600 shrink-0" />
+                      Join Meeting
+                    </button>
+                  )}
+                  {s.status === 'pending' && (
+                    <button
+                      type="button"
+                      disabled={confirmingSessionId === s.id}
+                      onClick={() => handleConfirmSession(s.id)}
+                      className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: TEAL }}
+                    >
+                      {confirmingSessionId === s.id ? 'Confirming…' : 'Confirm Session'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    View Details
+                  </button>
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-2 mt-5">
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-                  style={{ backgroundColor: TEAL }}
-                >
-                  Confirm Session
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Request Reschedule
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>

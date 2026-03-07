@@ -97,6 +97,13 @@ function formatTime() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
+/** Format YYYY-MM-DD to DD/MM/YYYY for review display */
+function formatDateDDMMYYYY(iso: string): string {
+  if (!iso || !iso.match(/^\d{4}-\d{2}-\d{2}/)) return iso || '—'
+  const [y, m, d] = iso.slice(0, 10).split('-')
+  return `${d}/${m}/${y}`
+}
+
 function toSet(v: unknown): Set<string> {
   return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
 }
@@ -3118,39 +3125,264 @@ export function CreateRequirement() {
 
                 <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                   <h3 className="text-lg font-bold text-gray-900 mb-5">Requirement Summary</h3>
-                  <dl className="space-y-4">
-                    <div>
-                      <dt className="text-sm text-gray-500">Objective</dt>
-                      <dd className="mt-0.5 text-base font-medium text-gray-900">
-                        {selectedOutcome ? (OUTCOME_CARDS.find((c) => c.id === selectedOutcome)?.title ?? 'Not specified') : 'Not specified'}
-                      </dd>
+
+                  {/* Objective */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[#2293B4]" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>
+                      </span>
+                      <h4 className="text-base font-semibold" style={{ color: TEAL }}>Objective</h4>
                     </div>
-                    <div>
-                      <dt className="text-sm text-gray-500">Audience</dt>
-                      <dd className="mt-0.5 text-base font-medium text-gray-900">
-                        {audienceSelected.size > 0 ? Array.from(audienceSelected).slice(0, 3).join(', ') + (audienceSelected.size > 3 ? '…' : '') : 'Not specified'}
-                      </dd>
+                    <dl className="space-y-2 text-sm">
+                      <div>
+                        <dt className="text-gray-500 font-medium">Primary Goal:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {selectedOutcome ? selectedOutcome.replace(/-/g, '_') : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Desired Transformation:</dt>
+                        <dd className="text-gray-900 mt-0.5">{successMetrics.trim() || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Secondary Objectives:</dt>
+                        <dd className="mt-1 flex flex-wrap gap-1.5">
+                          {secondarySelected.size > 0
+                            ? Array.from(secondarySelected).map((id) => (
+                                <span key={id} className="inline-flex rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                  {id.replace(/\s+/g, '_')}
+                                </span>
+                              ))
+                            : '—'}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  {/* Audience */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[#2293B4]" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                      </span>
+                      <h4 className="text-base font-semibold" style={{ color: TEAL }}>Audience</h4>
                     </div>
-                    <div>
-                      <dt className="text-sm text-gray-500">Format</dt>
-                      <dd className="mt-0.5 text-base font-medium text-gray-900">
-                        {(() => {
-                          const eng = engagementTypeSelected ? ENGAGEMENT_TYPE_OPTIONS.find((o) => o.id === engagementTypeSelected)?.title?.replace(/\s+/g, '_') : null
-                          const del = deliveryModeSelected ? DELIVERY_MODE_OPTIONS.find((o) => o.id === deliveryModeSelected)?.title : null
-                          if (eng && del) return `${eng} · ${del}`
-                          if (eng) return eng
-                          if (del) return del
-                          return 'Not specified'
-                        })()}
-                      </dd>
+                    <dl className="space-y-2 text-sm">
+                      <div>
+                        <dt className="text-gray-500 font-medium">Roles:</dt>
+                        <dd className="mt-0.5 flex flex-wrap gap-1.5">
+                          {audienceSelected.size > 0
+                            ? Array.from(audienceSelected).map((r) => (
+                                <span key={r} className="inline-flex rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                  {r.replace(/\s+/g, '_').toLowerCase()}
+                                </span>
+                              ))
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Seniority Levels:</dt>
+                        <dd className="mt-0.5 flex flex-wrap gap-1.5">
+                          {senioritySelected.size > 0
+                            ? Array.from(senioritySelected).map((s) => (
+                                <span key={s} className="inline-flex rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                  {s.replace(/\s+/g, '_').toLowerCase()}
+                                </span>
+                              ))
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Audience Size:</dt>
+                        <dd className="text-gray-900 mt-0.5">{audienceSize ? `${audienceSize} participants` : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Average Experience:</dt>
+                        <dd className="text-gray-900 mt-0.5">{averageExperience || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Functional Background:</dt>
+                        <dd className="mt-0.5 flex flex-wrap gap-1.5">
+                          {functionalSelected.size > 0
+                            ? Array.from(functionalSelected).map((f) => (
+                                <span key={f} className="inline-flex rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                  {f.replace(/\s+/g, '_').toLowerCase()}
+                                </span>
+                              ))
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Industry Context:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {industrySelected.size > 0 ? Array.from(industrySelected).map((i) => i.replace(/\s+/g, '_').toLowerCase()).join(', ') : '—'}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  {/* Engagement Details */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[#2293B4]" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+                      </span>
+                      <h4 className="text-base font-semibold" style={{ color: TEAL }}>Engagement Details</h4>
                     </div>
-                    <div>
-                      <dt className="text-sm text-gray-500">Budget</dt>
-                      <dd className="mt-0.5 text-base font-medium text-gray-900">
-                        {minBudget > 0 || maxBudget > 0 ? `₹${minBudget.toLocaleString('en-IN')} - ₹${maxBudget.toLocaleString('en-IN')}` : 'Not specified'}
-                      </dd>
+                    <dl className="space-y-2 text-sm">
+                      <div>
+                        <dt className="text-gray-500 font-medium">Format:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {engagementTypeSelected
+                            ? (ENGAGEMENT_TYPE_OPTIONS.find((o) => o.id === engagementTypeSelected)?.title ?? engagementTypeSelected).replace(/\s+/g, '_')
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Delivery Mode:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {deliveryModeSelected
+                            ? (DELIVERY_MODE_OPTIONS.find((o) => o.id === deliveryModeSelected)?.title ?? deliveryModeSelected).replace(/\s+/g, ' ')
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Total Duration:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {totalDurationMinutes
+                            ? (() => {
+                                const n = parseInt(totalDurationMinutes, 10)
+                                if (Number.isFinite(n) && n >= 60) return `${Math.round(n / 60)} hours`
+                                if (Number.isFinite(n)) return `${n} minutes`
+                                return totalDurationMinutes
+                              })()
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Number of Sessions:</dt>
+                        <dd className="text-gray-900 mt-0.5">{totalSessions ? `${totalSessions} sessions` : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Expected Deliverables:</dt>
+                        <dd className="mt-0.5 flex flex-wrap gap-1.5">
+                          {deliverablesSelected.size > 0
+                            ? Array.from(deliverablesSelected).map((id) => (
+                                <span key={id} className="inline-flex rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                  {id.replace(/-/g, '_')}
+                                </span>
+                              ))
+                            : '—'}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  {/* Timeline & Location */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[#2293B4]" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                      </span>
+                      <h4 className="text-base font-semibold" style={{ color: TEAL }}>Timeline &amp; Location</h4>
                     </div>
-                  </dl>
+                    <dl className="space-y-2 text-sm">
+                      <div>
+                        <dt className="text-gray-500 font-medium">Timeline:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {preferredStartDate || preferredEndDate
+                            ? `Start: ${formatDateDDMMYYYY(preferredStartDate)} • End: ${formatDateDDMMYYYY(preferredEndDate)}`
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Urgency:</dt>
+                        <dd className="text-gray-900 mt-0.5">{urgencyLevel || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Timeline Flexibility:</dt>
+                        <dd className="text-gray-900 mt-0.5">{flexibilityLevel ? flexibilityLevel.replace(/\s+/g, '_') : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Location:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {[city, state, country].filter(Boolean).join(', ') || '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Venue Type:</dt>
+                        <dd className="text-gray-900 mt-0.5">{venueType ? venueType.replace(/\s+/g, '_') : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Preferred Time Slots:</dt>
+                        <dd className="mt-0.5 flex flex-wrap gap-1.5">
+                          {preferredTimeSlots.size > 0
+                            ? Array.from(preferredTimeSlots).map((slot) => (
+                                <span key={slot} className="inline-flex rounded-md border border-gray-200 bg-white px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                  {slot.toLowerCase()}
+                                </span>
+                              ))
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Timezone:</dt>
+                        <dd className="text-gray-900 mt-0.5">{timezone || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Preparation Time Available:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {preparationTimeSelected
+                            ? (() => {
+                                const opt = PREPARATION_TIME_OPTIONS.find((o) => o.id === preparationTimeSelected)
+                                return opt ? `${opt.title.toLowerCase()} (${opt.description})` : preparationTimeSelected
+                              })()
+                            : '—'}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  {/* Budget & Commercial */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[#2293B4]" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                      </span>
+                      <h4 className="text-base font-semibold" style={{ color: TEAL }}>Budget &amp; Commercial</h4>
+                    </div>
+                    <dl className="space-y-2 text-sm">
+                      <div>
+                        <dt className="text-gray-500 font-medium">Budget Range:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {minBudget > 0 || maxBudget > 0
+                            ? `₹${minBudget.toLocaleString('en-IN')} - ₹${maxBudget.toLocaleString('en-IN')}`
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Budget Type:</dt>
+                        <dd className="text-gray-900 mt-0.5">{budgetType ? budgetType.replace(/\s+/g, '_') : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Budget Flexibility:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {budgetFlexibility
+                            ? (BUDGET_FLEXIBILITY_OPTIONS.find((o) => o.id === budgetFlexibility)?.title ?? budgetFlexibility)
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500 font-medium">Payment Terms:</dt>
+                        <dd className="text-gray-900 mt-0.5">
+                          {paymentTermSelected
+                            ? (PAYMENT_TERMS_OPTIONS.find((o) => o.id === paymentTermSelected)?.title ?? paymentTermSelected).replace(/\s+/g, '_').replace(/-/g, '_')
+                            : '—'}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
                 </div>
               </div>
             )}

@@ -195,50 +195,56 @@ export function Requirement() {
             {listings.map((item) => (
               <div
                 key={item.id}
-                className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm"
+                className={`rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm ${item.status !== 'Draft' ? 'hover:border-gray-300' : ''}`}
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-semibold text-gray-900">{item.title}</h2>
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[item.status]}`}
-                      >
-                        {item.status}
-                      </span>
+                <Link
+                  to={item.status === 'Draft' ? `/business/create-requirement/${item.id}` : `/business/requirement/${item.id}`}
+                  className="no-underline block"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-base font-semibold text-gray-900">{item.title}</h2>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[item.status]}`}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-500">{item.subtitle}</p>
                     </div>
-                    <p className="mt-1 text-sm text-gray-500">{item.subtitle}</p>
+                    <div className="text-right text-sm text-gray-600">
+                      <div className="text-xs uppercase tracking-wide text-gray-400">Budget</div>
+                      <div className="mt-0.5 font-semibold text-gray-900">{item.budget}</div>
+                    </div>
                   </div>
-                  <div className="text-right text-sm text-gray-600">
-                    <div className="text-xs uppercase tracking-wide text-gray-400">Budget</div>
-                    <div className="mt-0.5 font-semibold text-gray-900">{item.budget}</div>
-                  </div>
-                </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
-                  <div className="flex flex-wrap items-center gap-6">
-                    <div className="inline-flex items-center gap-1.5">
-                      <IconSparkles />
-                      <span className="text-xs text-gray-500">{item.matches} matches</span>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+                    <div className="flex flex-wrap items-center gap-6">
+                      <div className="inline-flex items-center gap-1.5">
+                        <IconSparkles />
+                        <span className="text-xs text-gray-500">{item.matches} matches</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5">
+                        <IconUsers />
+                        <span className="text-xs text-gray-500">{item.proposals} proposals</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5">
+                        <IconClock />
+                        <span className="text-xs text-gray-500">{item.created}</span>
+                      </div>
                     </div>
-                    <div className="inline-flex items-center gap-1.5">
-                      <IconUsers />
-                      <span className="text-xs text-gray-500">{item.proposals} proposals</span>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5">
-                      <IconClock />
-                      <span className="text-xs text-gray-500">{item.created}</span>
-                    </div>
+                    {item.status === 'Draft' ? (
+                      <span className="inline-flex items-center gap-2 rounded-lg bg-[#008C9E] px-3 py-2 text-sm font-medium text-white">
+                        Continue
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 rounded-lg bg-[#008C9E] px-3 py-2 text-sm font-medium text-white">
+                        View
+                      </span>
+                    )}
                   </div>
-                  {item.status === 'Draft' && (
-                    <Link
-                      to={`/business/create-requirement/${item.id}`}
-                      className="inline-flex items-center gap-2 rounded-lg bg-[#008C9E] px-3 py-2 text-sm font-medium text-white no-underline hover:opacity-90"
-                    >
-                      Continue
-                    </Link>
-                  )}
-                </div>
+                </Link>
               </div>
             ))}
           </div>

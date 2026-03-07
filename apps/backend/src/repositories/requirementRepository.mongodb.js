@@ -44,10 +44,23 @@ async function countByUser(userId, status) {
   return Requirement.countDocuments(query);
 }
 
+/** List published requirements for expert Opportunities page. */
+async function listPublished(options = {}) {
+  const { limit = 50, skip = 0 } = options;
+  const list = await Requirement.find({ status: "published" })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate("createdBy", "companyName")
+    .lean();
+  return list;
+}
+
 module.exports = {
   create,
   listByUser,
   findById,
   updateById,
   countByUser,
+  listPublished,
 };

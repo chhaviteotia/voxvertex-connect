@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
 import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
+import { getExpertProfile, updateExpertProfile, type ExperienceEntry } from '../../api/expertProfile'
 import {
   IconUser,
   IconTarget,
@@ -117,24 +118,34 @@ export function ExpertProfile() {
   const [linkedInUrl, setLinkedInUrl] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
 
-  // Capability selections
-  const [selectedObjectives, setSelectedObjectives] = useState<string[]>(['Hiring & Talent'])
+  // Capability selections (no pre-selection; expert chooses)
+  const [selectedObjectives, setSelectedObjectives] = useState<string[]>([])
   const [customObjectives, setCustomObjectives] = useState<string[]>([])
   const [customObjectiveInput, setCustomObjectiveInput] = useState('')
 
-  const [selectedAudiences, setSelectedAudiences] = useState<string[]>(['Marketing Team', 'Operations Team'])
+  const [selectedAudiences, setSelectedAudiences] = useState<string[]>([])
   const [customAudiences, setCustomAudiences] = useState<string[]>([])
   const [customAudienceInput, setCustomAudienceInput] = useState('')
 
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([])
 
-  const [selectedEngagementTypes, setSelectedEngagementTypes] = useState<string[]>(['Keynote Session', 'Panel Discussion'])
+  const [selectedEngagementTypes, setSelectedEngagementTypes] = useState<string[]>([])
   const [customEngagementTypes, setCustomEngagementTypes] = useState<string[]>([])
   const [customEngagementInput, setCustomEngagementInput] = useState('')
 
-  const [selectedTopics, setSelectedTopics] = useState<string[]>(['Time Management', 'Operations Management'])
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
   const [customTopics, setCustomTopics] = useState<string[]>([])
   const [customTopicInput, setCustomTopicInput] = useState('')
+
+  // Capability: interactivity, functional alignment, depth
+  const [interactivityLevel, setInteractivityLevel] = useState(50)
+  const [functionalAlignment, setFunctionalAlignment] = useState<Record<string, number>>({
+    technicalOrientation: 3,
+    businessOrientation: 3,
+    toolUsageMaturity: 3,
+    processOrientation: 3,
+  })
+  const [depthCapacity, setDepthCapacity] = useState<number | null>(null)
 
   // Other sections
   const [deliveryStructure, setDeliveryStructure] = useState('')
@@ -148,13 +159,218 @@ export function ExpertProfile() {
   const [travelWillingness, setTravelWillingness] = useState('Select travel willingness')
 
   const [showExperienceForm, setShowExperienceForm] = useState(false)
+  const [editingExperienceIndex, setEditingExperienceIndex] = useState<number | null>(null)
   const [experienceTitle, setExperienceTitle] = useState('')
   const [experienceOutcome, setExperienceOutcome] = useState('')
   const [experienceAudience, setExperienceAudience] = useState('')
   const [experienceYear, setExperienceYear] = useState('')
+  const [experienceEntries, setExperienceEntries] = useState<ExperienceEntry[]>([])
+
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<{ section: string; ok: boolean } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setProfileLoading(true)
+    setProfileError(null)
+    getExpertProfile()
+      .then((res) => {
+        if (cancelled || !res.success || !res.data) return
+        const d = res.data
+        if (d.identity) {
+          setBio(d.identity.bio ?? '')
+          setLinkedInUrl(d.identity.linkedInUrl ?? '')
+          setPhotoUrl(d.identity.photoUrl ?? '')
+        }
+        if (d.capability) {
+          const c = d.capability
+          setSelectedObjectives(c.selectedObjectives ?? [])
+          setCustomObjectives(c.customObjectives ?? [])
+          setSelectedAudiences(c.selectedAudiences ?? [])
+          setCustomAudiences(c.customAudiences ?? [])
+          setSelectedIndustries(c.selectedIndustries ?? [])
+          setSelectedEngagementTypes(c.selectedEngagementTypes ?? [])
+          setCustomEngagementTypes(c.customEngagementTypes ?? [])
+          setSelectedTopics(c.selectedTopics ?? [])
+          setCustomTopics(c.customTopics ?? [])
+          setInteractivityLevel(typeof c.interactivityLevel === 'number' ? c.interactivityLevel : 50)
+          setFunctionalAlignment(c.functionalAlignment && typeof c.functionalAlignment === 'object' ? c.functionalAlignment : { technicalOrientation: 3, businessOrientation: 3, toolUsageMaturity: 3, processOrientation: 3 })
+          setDepthCapacity(typeof c.depthCapacity === 'number' && c.depthCapacity >= 1 && c.depthCapacity <= 5 ? c.depthCapacity : null)
+        }
+        if (d.experience?.entries?.length) setExperienceEntries(d.experience.entries)
+        if (d.delivery) {
+          setDeliveryStructure(d.delivery.structure ?? '')
+          setToolsPlatforms(d.delivery.toolsPlatforms ?? '')
+          setOfferFollowUp(d.delivery.offerFollowUp ?? false)
+        }
+        if (d.pricing) {
+          setBaseFee(d.pricing.baseFee ?? '150000')
+          setPriceFlexibility(d.pricing.priceFlexibility ?? 'Moderate - Some flexibility')
+        }
+        if (d.availability) {
+          setWeeklyAvailability(d.availability.weeklyAvailability ?? '')
+          setTravelWillingness(d.availability.travelWillingness ?? 'Select travel willingness')
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setProfileError(err instanceof Error ? err.message : 'Failed to load profile')
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const toggle = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id))
+  }
+
+  const showSaveFeedback = (section: string, ok: boolean) => {
+    setSaveMessage({ section, ok })
+    setTimeout(() => setSaveMessage(null), 3000)
+  }
+
+  const handleSaveIdentity = async () => {
+    try {
+      const res = await updateExpertProfile({
+        identity: { bio, linkedInUrl, photoUrl },
+      })
+      if (res.success) showSaveFeedback('Identity', true)
+      else showSaveFeedback('Identity', false)
+    } catch {
+      showSaveFeedback('Identity', false)
+    }
+  }
+
+  const handleSaveCapability = async () => {
+    try {
+      const res = await updateExpertProfile({
+        capability: {
+          selectedObjectives,
+          customObjectives,
+          selectedAudiences,
+          customAudiences,
+          selectedIndustries,
+          selectedEngagementTypes,
+          customEngagementTypes,
+          selectedTopics,
+          customTopics,
+          interactivityLevel,
+          functionalAlignment: Object.keys(functionalAlignment).length ? functionalAlignment : undefined,
+          depthCapacity: depthCapacity ?? undefined,
+        },
+      })
+      if (res.success) showSaveFeedback('Capability', true)
+      else showSaveFeedback('Capability', false)
+    } catch {
+      showSaveFeedback('Capability', false)
+    }
+  }
+
+  const setAlignment = (key: string, value: number) => {
+    setFunctionalAlignment((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const canSaveExperience = showExperienceForm && experienceTitle.trim().length > 0
+
+  const handleSaveExperience = async () => {
+    if (!canSaveExperience) return
+    const entry: ExperienceEntry = {
+      title: experienceTitle.trim() || undefined,
+      outcome: experienceOutcome.trim() || undefined,
+      audience: experienceAudience.trim() || undefined,
+      year: experienceYear.trim() || undefined,
+    }
+    const nextEntries =
+      editingExperienceIndex !== null
+        ? experienceEntries.map((e, i) => (i === editingExperienceIndex ? entry : e))
+        : [...experienceEntries, entry]
+    try {
+      const res = await updateExpertProfile({ experience: { entries: nextEntries } })
+      if (res.success) {
+        setExperienceEntries(nextEntries)
+        setExperienceTitle('')
+        setExperienceOutcome('')
+        setExperienceAudience('')
+        setExperienceYear('')
+        setEditingExperienceIndex(null)
+        setShowExperienceForm(false)
+        showSaveFeedback('Experience', true)
+      } else showSaveFeedback('Experience', false)
+    } catch {
+      showSaveFeedback('Experience', false)
+    }
+  }
+
+  const handleEditExperience = (index: number) => {
+    const entry = experienceEntries[index]
+    if (!entry) return
+    setExperienceTitle(entry.title ?? '')
+    setExperienceOutcome(entry.outcome ?? '')
+    setExperienceAudience(entry.audience ?? '')
+    setExperienceYear(entry.year ?? '')
+    setEditingExperienceIndex(index)
+    setShowExperienceForm(true)
+  }
+
+  const handleDeleteExperience = async (index: number) => {
+    const nextEntries = experienceEntries.filter((_, i) => i !== index)
+    try {
+      const res = await updateExpertProfile({ experience: { entries: nextEntries } })
+      if (res.success) {
+        setExperienceEntries(nextEntries)
+        if (editingExperienceIndex === index) {
+          setShowExperienceForm(false)
+          setEditingExperienceIndex(null)
+          setExperienceTitle('')
+          setExperienceOutcome('')
+          setExperienceAudience('')
+          setExperienceYear('')
+        } else if (editingExperienceIndex !== null && editingExperienceIndex > index) {
+          setEditingExperienceIndex(editingExperienceIndex - 1)
+        }
+        showSaveFeedback('Experience', true)
+      } else showSaveFeedback('Experience', false)
+    } catch {
+      showSaveFeedback('Experience', false)
+    }
+  }
+
+  const handleSaveDelivery = async () => {
+    try {
+      const res = await updateExpertProfile({
+        delivery: { structure: deliveryStructure, toolsPlatforms, offerFollowUp },
+      })
+      if (res.success) showSaveFeedback('Delivery Model', true)
+      else showSaveFeedback('Delivery Model', false)
+    } catch {
+      showSaveFeedback('Delivery Model', false)
+    }
+  }
+
+  const handleSavePricing = async () => {
+    try {
+      const res = await updateExpertProfile({
+        pricing: { baseFee, priceFlexibility },
+      })
+      if (res.success) showSaveFeedback('Pricing', true)
+      else showSaveFeedback('Pricing', false)
+    } catch {
+      showSaveFeedback('Pricing', false)
+    }
+  }
+
+  const handleSaveAvailability = async () => {
+    try {
+      const res = await updateExpertProfile({
+        availability: { weeklyAvailability, travelWillingness },
+      })
+      if (res.success) showSaveFeedback('Availability', true)
+      else showSaveFeedback('Availability', false)
+    } catch {
+      showSaveFeedback('Availability', false)
+    }
   }
 
   return (
@@ -173,6 +389,36 @@ export function ExpertProfile() {
           <p className="text-sm text-gray-500 mt-0.5">Complete your profile to get better matches</p>
         </div>
 
+        {profileLoading && (
+          <div className="mb-4 rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-500">
+            Loading profile…
+          </div>
+        )}
+        {profileError && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {profileError}
+          </div>
+        )}
+        {/* Toast: fixed position so user sees it without scrolling */}
+        {saveMessage && (
+          <div
+            role="alert"
+            className={`fixed bottom-6 right-6 z-50 max-w-sm rounded-lg border px-4 py-3 text-sm font-medium shadow-lg transition-opacity ${
+              saveMessage.ok
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            {saveMessage.ok ? (
+              <>Saved {saveMessage.section} successfully.</>
+            ) : (
+              <>Could not save {saveMessage.section}. Please try again.</>
+            )}
+          </div>
+        )}
+
+        {!profileLoading && !profileError && (
+        <>
         {/* Profile Strength */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -284,6 +530,7 @@ export function ExpertProfile() {
                       </div>
                       <button
                         type="button"
+                        onClick={handleSaveIdentity}
                         className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
                         style={{ backgroundColor: ACCENT }}
                       >
@@ -540,14 +787,30 @@ export function ExpertProfile() {
                         </div>
                       </div>
 
-                      {/* Interactivity Level */}
+                      {/* Interactivity Level - black fill and pointer up to selected level */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="text-sm font-semibold text-gray-900">Interactivity Level</h4>
-                          <span className="text-xs font-medium text-gray-600">50% Interactive</span>
+                          <span className="text-xs font-medium text-gray-600">{interactivityLevel}% Interactive</span>
                         </div>
-                        <div className="mt-1 h-2 w-full rounded-full bg-gray-200 overflow-hidden">
-                          <div className="h-full rounded-full bg-gray-800" style={{ width: '50%' }} />
+                        <div className="relative mt-1 h-3 w-full rounded-full bg-gray-200">
+                          <div
+                            className="absolute left-0 top-0 h-full rounded-l-full bg-gray-900"
+                            style={{ width: `${interactivityLevel}%` }}
+                          />
+                          <div
+                            className="absolute top-1/2 z-10 h-4 w-4 rounded-full border-2 border-white bg-gray-900 shadow pointer-events-none"
+                            style={{ left: `${interactivityLevel}%`, transform: 'translate(-50%, -50%)' }}
+                          />
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={interactivityLevel}
+                            onChange={(e) => setInteractivityLevel(Number(e.target.value))}
+                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                            aria-label="Interactivity level"
+                          />
                         </div>
                         <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
                           <span>Lecture-based</span>
@@ -562,51 +825,43 @@ export function ExpertProfile() {
                           Rate yourself on these dimensions (1-5 scale)
                         </p>
                         {[
-                          {
-                            title: 'Technical Orientation',
-                            helper: 'How technical is your content? (1 = Non-technical, 5 = Highly technical)',
-                          },
-                          {
-                            title: 'Business Orientation',
-                            helper: 'How business-focused is your content? (1 = Conceptual, 5 = Business outcomes)',
-                          },
-                          {
-                            title: 'Tool Usage Maturity',
-                            helper: 'How advanced are the tools you use? (1 = Basic, 5 = Advanced platforms)',
-                          },
-                          {
-                            title: 'Process Orientation',
-                            helper: 'How structured is your approach? (1 = Flexible, 5 = Highly structured)',
-                          },
-                        ].map((row) => (
-                          <div key={row.title} className="flex flex-col gap-1.5 mb-3">
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900">{row.title}</p>
-                                <p className="text-xs text-gray-500">{row.helper}</p>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                {[1, 2, 3, 4, 5].map((n) => {
-                                  const active = n === 3
-                                  return (
-                                    <button
-                                      key={n}
-                                      type="button"
-                                      className={`h-8 w-8 rounded-md border text-xs font-semibold ${
-                                        active
-                                          ? 'text-white'
-                                          : 'border-gray-200 bg-white text-gray-700'
-                                      }`}
-                                      style={active ? { borderColor: SELECTED_TEAL, backgroundColor: SELECTED_TEAL } : undefined}
-                                    >
-                                      {n}
-                                    </button>
-                                  )
-                                })}
+                          { key: 'technicalOrientation', title: 'Technical Orientation', helper: 'How technical is your content? (1 = Non-technical, 5 = Highly technical)' },
+                          { key: 'businessOrientation', title: 'Business Orientation', helper: 'How business-focused is your content? (1 = Conceptual, 5 = Business outcomes)' },
+                          { key: 'toolUsageMaturity', title: 'Tool Usage Maturity', helper: 'How advanced are the tools you use? (1 = Basic, 5 = Advanced platforms)' },
+                          { key: 'processOrientation', title: 'Process Orientation', helper: 'How structured is your approach? (1 = Flexible, 5 = Highly structured)' },
+                        ].map((row) => {
+                          const value = functionalAlignment[row.key] ?? 3
+                          return (
+                            <div key={row.key} className="flex flex-col gap-1.5 mb-3">
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900">{row.title}</p>
+                                  <p className="text-xs text-gray-500">{row.helper}</p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {[1, 2, 3, 4, 5].map((n) => {
+                                    const active = n === value
+                                    return (
+                                      <button
+                                        key={n}
+                                        type="button"
+                                        onClick={() => setAlignment(row.key, n)}
+                                        className={`h-8 w-8 rounded-md border text-xs font-semibold ${
+                                          active
+                                            ? 'text-white'
+                                            : 'border-gray-200 bg-white text-gray-700'
+                                        }`}
+                                        style={active ? { borderColor: SELECTED_TEAL, backgroundColor: SELECTED_TEAL } : undefined}
+                                      >
+                                        {n}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
 
                       {/* Depth Capacity */}
@@ -615,17 +870,18 @@ export function ExpertProfile() {
                         <p className="text-xs text-gray-500 mb-3">How deep can you go in your topics?</p>
                         <div className="grid grid-cols-5 gap-2 mb-4">
                           {[
-                            { label: '1', sub: 'Awareness' },
-                            { label: '2', sub: 'Basic' },
-                            { label: '3', sub: 'Intermediate' },
-                            { label: '4', sub: 'Advanced' },
-                            { label: '5', sub: 'Expert' },
+                            { value: 1, label: '1', sub: 'Awareness' },
+                            { value: 2, label: '2', sub: 'Basic' },
+                            { value: 3, label: '3', sub: 'Intermediate' },
+                            { value: 4, label: '4', sub: 'Advanced' },
+                            { value: 5, label: '5', sub: 'Expert' },
                           ].map((item) => {
-                            const active = item.label === '3'
+                            const active = depthCapacity === item.value
                             return (
                               <button
                                 key={item.label}
                                 type="button"
+                                onClick={() => setDepthCapacity(item.value)}
                                 className={`flex flex-col items-center justify-center rounded-lg border px-2 py-3 text-sm font-medium ${
                                   active
                                     ? 'border-[#0EA5E9] bg-white text-gray-900'
@@ -701,6 +957,7 @@ export function ExpertProfile() {
                         </div>
                         <button
                           type="button"
+                          onClick={handleSaveCapability}
                           className="mt-5 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
                           style={{ backgroundColor: SELECTED_TEAL }}
                         >
@@ -713,13 +970,66 @@ export function ExpertProfile() {
 
                 {section.id === 'experience' && isExpanded && (
                   <div className="border-t border-gray-100 px-5 py-5 bg-gray-50/30">
+                    {/* List of saved experiences */}
+                    {experienceEntries.length > 0 && (
+                      <div className="mb-5">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-3">Saved experiences</h4>
+                        <ul className="space-y-3">
+                          {experienceEntries.map((entry, index) => (
+                            <li
+                              key={`${entry.title}-${index}`}
+                              className="rounded-xl border border-gray-200 bg-white p-4"
+                            >
+                              <p className="text-sm font-semibold text-gray-900">
+                                {entry.title || 'Untitled engagement'}
+                              </p>
+                              {entry.outcome && (
+                                <p className="mt-1 text-xs text-gray-600">
+                                  <span className="font-medium text-gray-500">Outcome: </span>
+                                  {entry.outcome}
+                                </p>
+                              )}
+                              {(entry.audience || entry.year) && (
+                                <p className="mt-0.5 text-xs text-gray-500">
+                                  {[entry.audience, entry.year].filter(Boolean).join(' · ')}
+                                </p>
+                              )}
+                              <div className="mt-3 flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditExperience(index)}
+                                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExperience(index)}
+                                  className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm text-gray-500">Add your past engagements</p>
                       <button
                         type="button"
                         className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
                         style={{ backgroundColor: '#0F172A' }}
-                        onClick={() => setShowExperienceForm(true)}
+                        onClick={() => {
+                          setEditingExperienceIndex(null)
+                          setExperienceTitle('')
+                          setExperienceOutcome('')
+                          setExperienceAudience('')
+                          setExperienceYear('')
+                          setShowExperienceForm(true)
+                        }}
                       >
                         <span className="text-lg leading-none">+</span>
                         Add Experience
@@ -729,11 +1039,22 @@ export function ExpertProfile() {
                     {showExperienceForm && (
                       <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-5">
                         <div className="flex items-start justify-between gap-3">
-                          <h4 className="text-base font-semibold text-gray-900">Experience #1</h4>
+                          <h4 className="text-base font-semibold text-gray-900">
+                            {editingExperienceIndex !== null
+                              ? `Edit Experience #${editingExperienceIndex + 1}`
+                              : `Experience #${experienceEntries.length + 1}`}
+                          </h4>
                           <button
                             type="button"
                             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-                            onClick={() => setShowExperienceForm(false)}
+                            onClick={() => {
+                              setShowExperienceForm(false)
+                              setEditingExperienceIndex(null)
+                              setExperienceTitle('')
+                              setExperienceOutcome('')
+                              setExperienceAudience('')
+                              setExperienceYear('')
+                            }}
                             aria-label="Close experience form"
                           >
                             ×
@@ -770,15 +1091,21 @@ export function ExpertProfile() {
                             className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
                           />
                         </div>
+                        <button
+                          type="button"
+                          onClick={handleSaveExperience}
+                          disabled={!canSaveExperience}
+                          className={`mt-4 rounded-lg px-4 py-2.5 text-sm font-semibold text-white ${
+                            canSaveExperience
+                              ? ''
+                              : 'cursor-not-allowed opacity-50'
+                          }`}
+                          style={{ backgroundColor: canSaveExperience ? SELECTED_TEAL : '#9CA3AF' }}
+                        >
+                          Save Experience
+                        </button>
                       </div>
                     )}
-                    <button
-                      type="button"
-                      className="mt-4 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
-                      style={{ backgroundColor: SELECTED_TEAL }}
-                    >
-                      Save Experience
-                    </button>
                   </div>
                 )}
 
@@ -817,6 +1144,7 @@ export function ExpertProfile() {
                         </label>
                         <button
                           type="button"
+                          onClick={handleSaveDelivery}
                           className="mt-4 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
                           style={{ backgroundColor: SELECTED_TEAL }}
                         >
@@ -853,6 +1181,7 @@ export function ExpertProfile() {
                       </div>
                       <button
                         type="button"
+                        onClick={handleSavePricing}
                         className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
                         style={{ backgroundColor: SELECTED_TEAL }}
                       >
@@ -891,6 +1220,7 @@ export function ExpertProfile() {
                       </div>
                       <button
                         type="button"
+                        onClick={handleSaveAvailability}
                         className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
                         style={{ backgroundColor: SELECTED_TEAL }}
                       >
@@ -915,6 +1245,8 @@ export function ExpertProfile() {
             )
           })}
         </div>
+        </>
+        )}
       </div>
     </DashboardLayout>
   )

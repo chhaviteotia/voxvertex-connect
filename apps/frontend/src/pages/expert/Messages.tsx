@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
-import { businessSidebarItems, businessSidebarBottomItems } from '../../config/businessNav'
+import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
+import { useAppSelector } from '../../store/hooks'
+import { selectUser } from '../../store/selectors/authSelectors'
 import {
   listConversations,
   createOrGetConversation,
@@ -11,11 +13,15 @@ import {
   type MessageResponse,
 } from '../../api/conversations'
 
-export function Messages() {
+export function ExpertMessages() {
   const [searchParams] = useSearchParams()
-  const expertIdParam = searchParams.get('expertId')
+  const businessIdParam = searchParams.get('businessId')
   const requirementIdParam = searchParams.get('requirementId')
   const proposalIdParam = searchParams.get('proposalId')
+
+  const user = useAppSelector(selectUser) as { name?: string; email?: string } | null
+  const prefix = (user?.email || '').split('@')[0] || 'John'
+  const displayName = user?.name || (prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase() + ' Doe' : 'John Doe')
 
   const [conversations, setConversations] = useState<ConversationResponse[]>([])
   const [conversationsLoading, setConversationsLoading] = useState(true)
@@ -44,10 +50,10 @@ export function Messages() {
   }, [loadConversations])
 
   useEffect(() => {
-    if (!expertIdParam) return
+    if (!businessIdParam) return
     let cancelled = false
     createOrGetConversation({
-      expertId: expertIdParam,
+      businessId: businessIdParam,
       requirementId: requirementIdParam ?? undefined,
       proposalId: proposalIdParam ?? undefined,
     })
@@ -62,7 +68,7 @@ export function Messages() {
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [expertIdParam, requirementIdParam, proposalIdParam])
+  }, [businessIdParam, requirementIdParam, proposalIdParam])
 
   useEffect(() => {
     if (!activeId) {
@@ -107,25 +113,26 @@ export function Messages() {
 
   return (
     <DashboardLayout
-      sidebarItems={businessSidebarItems}
-      sidebarBottomItems={businessSidebarBottomItems}
-      userTypeLabel="Business"
-      userDisplayName="Acme Corp"
-      userSubLabel="Business Account"
+      sidebarItems={expertSidebarItems}
+      sidebarBottomItems={expertSidebarBottomItems}
+      userTypeLabel="Expert"
+      userDisplayName={displayName}
+      userSubLabel="Expert"
+      accentColor="green"
       mainClassName="pl-0 pr-0"
     >
       <div className="flex h-[calc(100vh-80px)] bg-white">
         <aside className="w-72 border-r border-gray-200 flex flex-col">
           <div className="px-4 py-4 border-b border-gray-200">
             <h1 className="text-lg font-bold text-gray-900">Messages</h1>
-            <p className="text-xs text-gray-500 mt-0.5">Expert Communications</p>
+            <p className="text-xs text-gray-500 mt-0.5">Business Communications</p>
           </div>
           <div className="flex-1 overflow-y-auto">
             {conversationsLoading && (
               <p className="px-4 py-3 text-sm text-gray-500">Loading…</p>
             )}
             {!conversationsLoading && conversations.length === 0 && (
-              <p className="px-4 py-3 text-sm text-gray-500">No conversations yet.</p>
+              <p className="px-4 py-3 text-sm text-gray-500">No conversations yet. When a business messages you from a proposal, they will appear here.</p>
             )}
             {!conversationsLoading &&
               conversations.map((conv) => {
@@ -149,7 +156,7 @@ export function Messages() {
                         .map((p) => p[0])
                         .join('')
                         .toUpperCase()
-                        .slice(0, 2) || 'EX'}
+                        .slice(0, 2) || 'CO'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{other.name}</p>
@@ -172,7 +179,7 @@ export function Messages() {
                   </svg>
                 </div>
                 <h2 className="text-base font-semibold text-gray-900">Select a conversation</h2>
-                <p className="mt-1 text-sm text-gray-500">Choose an expert from the left panel or click Message on a proposal to start chatting.</p>
+                <p className="mt-1 text-sm text-gray-500">Choose a business from the left panel to view and reply to messages.</p>
               </div>
             </div>
           )}
@@ -187,7 +194,7 @@ export function Messages() {
                       .map((p) => p[0])
                       .join('')
                       .toUpperCase()
-                      .slice(0, 2) || 'EX'}
+                      .slice(0, 2) || 'CO'}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{activeConversation.otherParticipant.name}</p>
@@ -205,11 +212,11 @@ export function Messages() {
                 )}
                 {!messagesLoading &&
                   messages.map((m) => {
-                    const isMe = m.senderType === 'business'
+                    const isMe = m.senderType === 'expert'
                     return (
                       <div key={m.id} className={`flex items-start gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
                         <div className="h-8 w-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center text-[11px] font-semibold text-gray-700 shrink-0">
-                          {isMe ? 'You' : activeConversation.otherParticipant.name.split(/\s+/).map((p) => p[0]).join('').toUpperCase().slice(0, 2) || 'EX'}
+                          {isMe ? 'You' : activeConversation.otherParticipant.name.split(/\s+/).map((p) => p[0]).join('').toUpperCase().slice(0, 2) || 'CO'}
                         </div>
                         <div className={isMe ? 'flex flex-col items-end' : ''}>
                           <div
