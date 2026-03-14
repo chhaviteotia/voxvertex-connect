@@ -32,19 +32,23 @@ export function DashboardLayout({
   mainClassName,
 }: DashboardLayoutProps) {
   return (
-    <div className="h-screen flex overflow-hidden bg-gray-50">
-      <Sidebar
-        items={sidebarItems}
-        bottomItems={sidebarBottomItems}
-        userDisplayName={userDisplayName}
-        userSubLabel={userSubLabel}
-        accentColor={accentColor}
-        footer={sidebarFooter}
-        className={sidebarClassName}
-      />
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <Header userDisplayName={userDisplayName} />
-        <main className={`flex-1 overflow-auto py-6 px-6 min-w-0 ${mainClassName ?? ''}`}>
+    <div className="h-screen flex overflow-hidden bg-gray-50 print:block print:h-auto">
+      <div className="print:hidden">
+        <Sidebar
+          items={sidebarItems}
+          bottomItems={sidebarBottomItems}
+          userDisplayName={userDisplayName}
+          userSubLabel={userSubLabel}
+          accentColor={accentColor}
+          footer={sidebarFooter}
+          className={sidebarClassName}
+        />
+      </div>
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden print:block print:min-h-0 print:overflow-visible">
+        <div className="print:hidden">
+          <Header userDisplayName={userDisplayName} />
+        </div>
+        <main className={`flex-1 overflow-auto py-6 px-6 min-w-0 print:overflow-visible print:px-0 print:py-0 ${mainClassName ?? ''}`}>
           {children}
         </main>
       </div>

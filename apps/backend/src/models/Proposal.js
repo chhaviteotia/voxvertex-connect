@@ -17,9 +17,22 @@ const proposalSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ["draft", "submitted"],
+      enum: ["draft", "submitted", "accepted", "modification-requested", "declined"],
       default: "submitted",
       index: true,
+    },
+    businessNote: {
+      type: String,
+      default: "",
+    },
+    statusUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+    statusUpdatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
     /** Payload from Submit Proposal form: understanding, outcomePlan, measurableOutcomes, sessionStructure, deliverables, similarEngagements, industryMatch, proposedFee, feeBreakdown, etc. */
     formData: {

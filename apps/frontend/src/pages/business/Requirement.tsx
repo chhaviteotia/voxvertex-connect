@@ -4,6 +4,7 @@ import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarItems, businessSidebarBottomItems } from '../../config/businessNav'
 import { IconSparkles, IconUsers, IconClock, IconPlus } from '../../components/layout/DashboardIcons'
 import { listRequirements, type RequirementResponse } from '../../api/requirements'
+import { listProposalsByRequirement } from '../../api/proposals'
 
 type DisplayStatus = 'Matching' | 'Active' | 'In Review' | 'Draft'
 
@@ -97,6 +98,7 @@ export function Requirement() {
   const [requirements, setRequirements] = useState<RequirementResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [proposalCountByRequirementId, setProposalCountByRequirementId] = useState<Record<string, number>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -115,7 +117,44 @@ export function Requirement() {
     return () => { cancelled = true }
   }, [])
 
-  const listings = requirements.map(mapRequirementToItem)
+  useEffect(() => {
+    if (requirements.length === 0) {
+      setProposalCountByRequirementId({})
+      return
+    }
+
+    let cancelled = false
+    Promise.all(
+      requirements.map(async (requirement) => {
+        try {
+          // limit=1 keeps payload tiny; we only need "total".
+          const response = await listProposalsByRequirement(requirement.id, { limit: 1, skip: 0 })
+          return [requirement.id, response.success ? response.total ?? 0 : 0] as const
+        } catch {
+          return [requirement.id, 0] as const
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return
+      setProposalCountByRequirementId(Object.fromEntries(entries))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [requirements])
+
+  const listings = requirements.map((requirement) => {
+    const mapped = mapRequirementToItem(requirement)
+    const proposalCount = proposalCountByRequirementId[requirement.id]
+    const safeCount = typeof proposalCount === 'number' ? proposalCount : 0
+    return {
+      ...mapped,
+      proposals: safeCount,
+      // No dedicated "matches" backend metric currently; keep aligned with proposals for now.
+      matches: safeCount,
+    }
+  })
 
   return (
     <DashboardLayout

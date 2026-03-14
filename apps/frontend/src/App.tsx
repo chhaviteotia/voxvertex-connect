@@ -17,6 +17,7 @@ import { Proposals } from './pages/business/Proposals'
 import { Messages } from './pages/business/Messages'
 import { Settings } from './pages/business/Settings'
 import { Experts } from './pages/business/Experts'
+import { BusinessCalendar } from './pages/business/Calendar'
 import { ExpertDashboard } from './pages/expert/Dashboard'
 import { ExpertProposals } from './pages/expert/Proposals'
 import { ExpertBrowse } from './pages/expert/Browse'
@@ -64,6 +65,7 @@ function App() {
         <Route path="/business/requirement/:requirementId" element={<RequirementDetail />} />
         <Route path="/business/experts" element={<Experts />} />
         <Route path="/business/proposals" element={<Proposals />} />
+        <Route path="/business/calendar" element={<BusinessCalendar />} />
         <Route path="/business/messages" element={<Messages />} />
         <Route path="/business/settings" element={<Settings />} />
         <Route path="/expert/dashboard" element={<ExpertDashboard />} />

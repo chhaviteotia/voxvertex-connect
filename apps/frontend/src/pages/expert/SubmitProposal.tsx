@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
@@ -66,6 +66,7 @@ const DELIVERABLES_BY_CATEGORY: { category: string; items: { id: string; label: 
 ]
 
 type SessionSegment = { segmentTitle: string; duration: string; type: string }
+type DeliverableFilesById = Record<string, File[]>
 
 export function SubmitProposal() {
   const { opportunityId } = useParams<{ opportunityId: string }>()
@@ -85,6 +86,8 @@ export function SubmitProposal() {
   const [currentSessionSegment, setCurrentSessionSegment] = useState<SessionSegment>({ segmentTitle: '', duration: '', type: '' })
   const [addedSessionSegments, setAddedSessionSegments] = useState<SessionSegment[]>([])
   const [deliverablesSelected, setDeliverablesSelected] = useState<Set<string>>(new Set())
+  const [deliverableFilesById, setDeliverableFilesById] = useState<DeliverableFilesById>({})
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [similarEngagements, setSimilarEngagements] = useState('')
   const [industryMatch, setIndustryMatch] = useState('')
   const [proposedFee, setProposedFee] = useState('200000')
@@ -117,6 +120,7 @@ export function SubmitProposal() {
         requirementId: opportunityId,
         status,
         formData: buildFormData(),
+        deliverableFilesById,
       })
       if (res.success && res.proposal) {
         if (status === 'submitted') {
@@ -165,9 +169,46 @@ export function SubmitProposal() {
   const toggleDeliverable = (id: string) => {
     setDeliverablesSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        setDeliverableFilesById((current) => {
+          const nextFiles = { ...current }
+          delete nextFiles[id]
+          return nextFiles
+        })
+      } else next.add(id)
       return next
+    })
+  }
+  const openFilePicker = (deliverableId: string) => {
+    fileInputRefs.current[deliverableId]?.click()
+  }
+  const addDeliverableFiles = (deliverableId: string, incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return
+    const files = Array.from(incoming)
+    setDeliverableFilesById((current) => {
+      const existing = current[deliverableId] ?? []
+      const seen = new Set(existing.map((file) => `${file.name}::${file.size}::${file.lastModified}`))
+      const merged = [...existing]
+      files.forEach((file) => {
+        const key = `${file.name}::${file.size}::${file.lastModified}`
+        if (seen.has(key)) return
+        seen.add(key)
+        merged.push(file)
+      })
+      return { ...current, [deliverableId]: merged }
+    })
+  }
+  const removeDeliverableFile = (deliverableId: string, fileIndex: number) => {
+    setDeliverableFilesById((current) => {
+      const existing = current[deliverableId] ?? []
+      const nextList = existing.filter((_, index) => index !== fileIndex)
+      if (nextList.length === 0) {
+        const nextMap = { ...current }
+        delete nextMap[deliverableId]
+        return nextMap
+      }
+      return { ...current, [deliverableId]: nextList }
     })
   }
 
@@ -458,11 +499,26 @@ export function SubmitProposal() {
                       </span>
                       <div>
                         <p className="font-semibold text-gray-900">{label}</p>
-                        <p className="text-xs text-gray-500">0 files uploaded</p>
+                        <p className="text-xs text-gray-500">
+                          {(deliverableFilesById[id]?.length ?? 0)} file{(deliverableFilesById[id]?.length ?? 0) === 1 ? '' : 's'} uploaded
+                        </p>
                       </div>
                     </div>
+                    <input
+                      ref={(el) => {
+                        fileInputRefs.current[id] = el
+                      }}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        addDeliverableFiles(id, e.target.files)
+                        e.currentTarget.value = ''
+                      }}
+                    />
                     <button
                       type="button"
+                      onClick={() => openFilePicker(id)}
                       className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -473,15 +529,37 @@ export function SubmitProposal() {
                       Upload Files
                     </button>
                   </div>
-                  <div className="rounded-xl border-2 border-dashed border-gray-200 bg-white py-8 px-4 text-center">
-                    <svg className="mx-auto mb-2 w-10 h-10 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                    <p className="text-sm font-medium text-gray-700">No files uploaded yet</p>
-                    <p className="text-xs text-gray-500 mt-1">Click &apos;Upload Files&apos; to add examples</p>
-                  </div>
+                  {deliverableFilesById[id]?.length ? (
+                    <div className="rounded-xl border border-gray-200 bg-white p-3">
+                      <ul className="space-y-2">
+                        {deliverableFilesById[id].map((file, fileIndex) => (
+                          <li key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-[#F8FAFC] px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-gray-800">{file.name}</p>
+                              <p className="text-xs text-gray-500">{Math.max(1, Math.round(file.size / 1024))} KB</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeDeliverableFile(id, fileIndex)}
+                              className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border-2 border-dashed border-gray-200 bg-white py-8 px-4 text-center">
+                      <svg className="mx-auto mb-2 w-10 h-10 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                      <p className="text-sm font-medium text-gray-700">No files uploaded yet</p>
+                      <p className="text-xs text-gray-500 mt-1">Click &apos;Upload Files&apos; to add examples</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
