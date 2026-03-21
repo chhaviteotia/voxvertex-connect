@@ -3,7 +3,7 @@ import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
 import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
-import { IconCalendar, IconClock, IconMapPin, IconVideo } from '../../components/layout/DashboardIcons'
+import { IconCalendar, IconClock } from '../../components/layout/DashboardIcons'
 import {
   getAvailability,
   createAvailability,
@@ -239,7 +239,12 @@ export function ExpertCalendar() {
     }
   }
 
-  const upcomingSessions = sessions.filter((s) => new Date(s.scheduledDate) >= new Date())
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const upcomingSessions = sessions.filter((s) => new Date(s.scheduledDate) >= todayStart)
+  const pastSessions = sessions
+    .filter((s) => new Date(s.scheduledDate) < todayStart)
+    .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime())
 
   return (
     <DashboardLayout
@@ -276,7 +281,8 @@ export function ExpertCalendar() {
             <div className="flex flex-wrap gap-3 mt-4">
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-lg border 
+                border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 transition-colors hover:border-[#0096C7] hover:bg-[#0096C7] hover:text-white"
               >
                 <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-gray-700 text-[10px] text-gray-800">
                   <span className="h-2 w-2 border border-gray-800" />
@@ -285,25 +291,29 @@ export function ExpertCalendar() {
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                className="group inline-flex items-center gap-2 rounded-lg border 
+                border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 
+                transition-colors hover:border-[#0096C7] hover:bg-[#0096C7] hover:text-white"
               >
-                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-700">
-                  <span className="h-2 w-2 rounded-full border border-gray-800" />
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-700 transition-colors group-hover:border-white">
+                  <span className="h-2 w-2 rounded-full border border-gray-800 transition-colors group-hover:border-white" />
                 </span>
                 Connect Apple Calendar
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                className="group inline-flex items-center gap-2 rounded-lg border 
+                border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 
+                transition-colors hover:border-[#0096C7] hover:bg-[#0096C7] hover:text-white"
               >
-                <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-gray-700">
-                  <span className="h-2 w-2 border border-gray-800 border-b-0 border-l-0" />
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-gray-700 transition-colors group-hover:border-white">
+                  <span className="h-2 w-2 border border-gray-800 border-b-0 border-l-0 transition-colors group-hover:border-white" />
                 </span>
                 Connect Outlook
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 transition-colors hover:border-[#0096C7] hover:bg-[#0096C7] hover:text-white"
               >
                 Download .ICS File
               </button>
@@ -326,7 +336,7 @@ export function ExpertCalendar() {
                 <span className="text-sm font-semibold text-gray-900">{monthLabel}</span>
                 <button
                   type="button"
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700"
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-[#0096C7] hover:bg-[#0096C7] hover:text-white"
                   onClick={goToday}
                 >
                   Today
@@ -396,7 +406,7 @@ export function ExpertCalendar() {
                     >
                       {day}
                       {available && <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-[#34D399]" />}
-                      {scheduled && <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-[#60A5FA]" />}
+                      {scheduled && <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-[#EF4444]" />}
                     </button>
                   </div>
                 )
@@ -609,94 +619,53 @@ export function ExpertCalendar() {
 
         {/* Scheduled Sessions */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Scheduled Sessions</h2>
-          <p className="text-xs text-gray-500 mb-4">Upcoming ({upcomingSessions.length})</p>
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Scheduled Sessions</h2>
 
-          {upcomingSessions.length === 0 && (
-            <p className="text-sm text-gray-500 py-2">No upcoming sessions.</p>
-          )}
-          <div className="space-y-4">
-            {upcomingSessions.map((s) => (
-              <div key={s.id} className="rounded-xl border border-gray-200 px-4 py-4">
-                <div className="mb-3">
-                  <p className="text-sm font-semibold text-gray-900 inline-flex items-center gap-2 flex-wrap">
-                    {s.companyName}
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-md px-2.5 py-0.5 text-xs font-medium ${
-                        s.status === 'confirmed'
-                          ? 'bg-[#e6ffe6] text-[#28a745]'
-                          : 'bg-orange-50 text-orange-600'
-                      }`}
-                    >
-                      {s.status === 'confirmed' ? (
-                        <>
-                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                          confirmed
-                        </>
-                      ) : (
-                        <>
-                          <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-                          pending
-                        </>
-                      )}
-                    </span>
-                  </p>
-                  {s.sessionType && <p className="text-xs text-gray-500 mt-0.5">{s.sessionType}</p>}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
+          <p className="text-sm font-semibold text-[#64748B] mb-3">Upcoming ({upcomingSessions.length})</p>
+          {upcomingSessions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-transparent py-10 text-[#94A3B8]">
+              <IconClock className="h-10 w-10" />
+              <p className="mt-2 text-sm">No upcoming sessions</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {upcomingSessions.map((s) => (
+                <div key={s.id} className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <IconCalendar className="w-4 h-4 text-gray-500 shrink-0" />
-                    <span>{formatWindowDate(s.scheduledDate)}</span>
+                    <p className="text-sm font-semibold text-[#1F2937]">{s.companyName}</p>
+                    <span className="rounded-md border border-[#E5E7EB] bg-white px-2 py-0.5 text-xs font-semibold text-[#64748B]">
+                      {s.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                    </span>
                   </div>
-                  {(s.startTime || s.endTime) && (
-                    <div className="flex items-center gap-2">
-                      <IconClock className="w-4 h-4 text-gray-500 shrink-0" />
-                      <span>{[s.startTime, s.endTime].filter(Boolean).join(' - ') || '—'}</span>
-                    </div>
-                  )}
-                  {s.location && (
-                    <div className="flex items-center gap-2">
-                      {s.location.toLowerCase().includes('online') || s.location.toLowerCase().includes('zoom') ? (
-                        <IconVideo className="w-4 h-4 text-gray-500 shrink-0" />
-                      ) : (
-                        <IconMapPin className="w-4 h-4 text-gray-500 shrink-0" />
-                      )}
-                      <span>{s.location}</span>
-                    </div>
-                  )}
+                  <p className="mt-1 text-sm text-[#94A3B8]">
+                    {String(s.sessionType || 'Session')
+                      .replace(/[-_]/g, ' ')
+                      .replace(/\b\w/g, (ch) => ch.toUpperCase())}{' '}
+                    • {formatWindowDate(s.scheduledDate)}
+                  </p>
                 </div>
+              ))}
+            </div>
+          )}
 
-                <div className="flex flex-wrap gap-2 mt-5">
-                  {s.status === 'confirmed' && (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
-                    >
-                      <IconVideo className="w-4 h-4 text-gray-600 shrink-0" />
-                      Join Meeting
-                    </button>
-                  )}
-                  {s.status === 'pending' && (
-                    <button
-                      type="button"
-                      disabled={confirmingSessionId === s.id}
-                      onClick={() => handleConfirmSession(s.id)}
-                      className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-                      style={{ backgroundColor: TEAL }}
-                    >
-                      {confirmingSessionId === s.id ? 'Confirming…' : 'Confirm Session'}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    View Details
-                  </button>
+          <div className="my-6 h-px bg-[#E5E7EB]" />
+
+          <p className="text-sm font-semibold text-[#64748B] mb-3">Past Sessions ({pastSessions.length})</p>
+          <div className="space-y-3">
+            {pastSessions.map((s) => (
+              <div key={s.id} className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-[#1F2937]">{s.companyName}</p>
+                  <span className="rounded-md border border-[#E5E7EB] bg-white px-2 py-0.5 text-xs font-semibold text-[#64748B]">
+                    Completed
+                  </span>
                 </div>
+                <p className="mt-1 text-sm text-[#94A3B8]">
+                  {String(s.sessionType || 'Session')
+                    .replace(/[-_]/g, ' ')
+                    .replace(/\b\w/g, (ch) => ch.toUpperCase())}{' '}
+                  • {formatWindowDate(s.scheduledDate)}
+                </p>
               </div>
             ))}
           </div>

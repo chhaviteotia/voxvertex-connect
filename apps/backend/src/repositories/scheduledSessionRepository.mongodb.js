@@ -42,6 +42,14 @@ async function countByStatus(expertId, status) {
   return ScheduledSession.countDocuments({ expertId, status });
 }
 
+async function listByRequirementIds(requirementIds = []) {
+  if (!Array.isArray(requirementIds) || requirementIds.length === 0) return [];
+  const docs = await ScheduledSession.find({ requirementId: { $in: requirementIds } })
+    .sort({ scheduledDate: 1, createdAt: -1 })
+    .lean();
+  return docs;
+}
+
 module.exports = {
   listByExpert,
   create,
@@ -49,4 +57,5 @@ module.exports = {
   updateStatus,
   countUpcomingByExpert,
   countByStatus,
+  listByRequirementIds,
 };

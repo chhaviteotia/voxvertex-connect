@@ -1,21 +1,54 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
 import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
-import { getExpertProfile, updateExpertProfile, type ExperienceEntry } from '../../api/expertProfile'
+import {
+  getExpertProfile,
+  updateExpertProfile,
+  type ExperienceEntry,
+  type ExpertProfileData,
+} from '../../api/expertProfile'
+import {
+  computeExpertProfileCompletion,
+  EXPERT_SECTION_LABELS,
+} from '../../utils/expertProfileCompletion'
 import {
   IconUser,
   IconTarget,
   IconCalendar,
   IconDollar,
-  IconSparkles,
   IconLock,
   IconDelivery,
 } from '../../components/layout/DashboardIcons'
 
-const ACCENT = '#1A97DA'
-const SELECTED_TEAL = '#008C9E'
+/** Primary green/teal for expert profile — matches “Improve Profile with AI” hover. */
+const ACCENT = '#0084A3'
+const SELECTED_TEAL = '#0084A3'
+
+/** AI Suggestions mark — accent 4-point star + smaller sparkle upper-right. */
+function AiSuggestionsSparkleMark({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="36"
+      height="36"
+      viewBox="0 0 36 36"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        fill={ACCENT}
+        d="M15.5 5.5l1.1 6.1 6.1 1.1-6.1 1.1-1.1 6.1-1.1-6.1-6.1-1.1 6.1-1.1 1.1-6.1z"
+      />
+      <path
+        fill={ACCENT}
+        d="M25.8 7.2l0.5 1.45 1.45 0.5-1.45 0.5-0.5 1.45-0.5-1.45-1.45-0.5 1.45-0.5 0.5-1.45z"
+      />
+    </svg>
+  )
+}
 
 const DEFAULT_OBJECTIVES = [
   'Skill Development',
@@ -65,6 +98,44 @@ const DEFAULT_INDUSTRIES = [
   'Education',
   'Startups',
 ]
+
+/** Predefined engagement types (cards). Custom types use violet chips below. */
+const DEFAULT_ENGAGEMENT_TYPES: { title: string; intensity: string; outcome: string }[] = [
+  { title: 'Keynote Session', intensity: 'low intensity', outcome: 'low outcome' },
+  { title: 'Panel Discussion', intensity: 'low intensity', outcome: 'low outcome' },
+  { title: 'Fireside Chat', intensity: 'low intensity', outcome: 'medium outcome' },
+  { title: 'Workshop (Single Day)', intensity: 'high intensity', outcome: 'medium outcome' },
+  { title: 'Workshop (Multi-Day)', intensity: 'high intensity', outcome: 'high outcome' },
+  { title: 'Bootcamp', intensity: 'high intensity', outcome: 'high outcome' },
+  { title: 'Coaching (1-on-1)', intensity: 'high intensity', outcome: 'high outcome' },
+  { title: 'Coaching (Group)', intensity: 'high intensity', outcome: 'high outcome' },
+  { title: 'Mentorship Program', intensity: 'medium intensity', outcome: 'high outcome' },
+  { title: 'Advisory Session', intensity: 'medium intensity', outcome: 'high outcome' },
+  { title: 'Strategy Offsite', intensity: 'high intensity', outcome: 'high outcome' },
+  { title: 'Roundtable', intensity: 'medium intensity', outcome: 'medium outcome' },
+  { title: 'Hackathon', intensity: 'high intensity', outcome: 'high outcome' },
+  { title: 'Masterclass', intensity: 'medium intensity', outcome: 'high outcome' },
+  { title: 'Webinar', intensity: 'low intensity', outcome: 'low outcome' },
+  { title: 'Training Program', intensity: 'high intensity', outcome: 'high outcome' },
+  { title: 'Implementation Sprint', intensity: 'high intensity', outcome: 'high outcome' },
+]
+
+/** Match reference UI: bold red intensity / green outcome labels */
+const ENGAGEMENT_INTENSITY_STYLE = (label: string) =>
+  label.includes('high')
+    ? 'font-semibold text-[#D93025]'
+    : label.includes('medium')
+      ? 'font-semibold text-[#C2410C]'
+      : 'font-medium text-gray-600'
+
+const ENGAGEMENT_OUTCOME_STYLE = (label: string) =>
+  label.includes('high')
+    ? 'font-semibold text-[#1E8E3E]'
+    : label.includes('medium')
+      ? 'font-semibold text-[#C2410C]'
+      : 'font-medium text-gray-600'
+
+const CUSTOM_ENGAGEMENT_VIOLET = '#7C3AED'
 
 const DEFAULT_TOPICS = [
   'Leadership Development',
@@ -169,6 +240,25 @@ export function ExpertProfile() {
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<{ section: string; ok: boolean } | null>(null)
+  /** Skip first run after profile load so we don’t PATCH back unchanged capability. */
+  const skipCapabilityAutosaveRef = useRef(true)
+
+  const getCapabilityUpdateBody = (): Partial<ExpertProfileData> => ({
+    capability: {
+      selectedObjectives,
+      customObjectives,
+      selectedAudiences,
+      customAudiences,
+      selectedIndustries,
+      selectedEngagementTypes,
+      customEngagementTypes,
+      selectedTopics,
+      customTopics,
+      interactivityLevel,
+      functionalAlignment: Object.keys(functionalAlignment).length ? functionalAlignment : undefined,
+      depthCapacity: depthCapacity ?? undefined,
+    },
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -185,15 +275,45 @@ export function ExpertProfile() {
         }
         if (d.capability) {
           const c = d.capability
-          setSelectedObjectives(c.selectedObjectives ?? [])
-          setCustomObjectives(c.customObjectives ?? [])
-          setSelectedAudiences(c.selectedAudiences ?? [])
-          setCustomAudiences(c.customAudiences ?? [])
+          const rawCustomObj = (c.customObjectives ?? []).filter(
+            (x: string) => !DEFAULT_OBJECTIVES.includes(x),
+          )
+          const rawSelObj = c.selectedObjectives ?? []
+          const inferredObj = rawSelObj.filter(
+            (x: string) => !DEFAULT_OBJECTIVES.includes(x) && !rawCustomObj.includes(x),
+          )
+          setCustomObjectives([...rawCustomObj, ...inferredObj])
+          setSelectedObjectives(rawSelObj)
+
+          const rawCustomAud = (c.customAudiences ?? []).filter(
+            (x: string) => !DEFAULT_AUDIENCES.includes(x),
+          )
+          const rawSelAud = c.selectedAudiences ?? []
+          const inferredAud = rawSelAud.filter(
+            (x: string) => !DEFAULT_AUDIENCES.includes(x) && !rawCustomAud.includes(x),
+          )
+          setCustomAudiences([...rawCustomAud, ...inferredAud])
+          setSelectedAudiences(rawSelAud)
           setSelectedIndustries(c.selectedIndustries ?? [])
-          setSelectedEngagementTypes(c.selectedEngagementTypes ?? [])
-          setCustomEngagementTypes(c.customEngagementTypes ?? [])
-          setSelectedTopics(c.selectedTopics ?? [])
-          setCustomTopics(c.customTopics ?? [])
+          const defaultEngagementTitles = new Set(DEFAULT_ENGAGEMENT_TYPES.map((e) => e.title))
+          const rawCustomEng = (c.customEngagementTypes ?? []).filter(
+            (x: string) => !defaultEngagementTitles.has(x),
+          )
+          const rawSelEng = c.selectedEngagementTypes ?? []
+          const inferredEng = rawSelEng.filter(
+            (x: string) => !defaultEngagementTitles.has(x) && !rawCustomEng.includes(x),
+          )
+          setCustomEngagementTypes([...rawCustomEng, ...inferredEng])
+          setSelectedEngagementTypes(rawSelEng)
+          const rawCustomTopics = (c.customTopics ?? []).filter(
+            (x: string) => !DEFAULT_TOPICS.includes(x),
+          )
+          const rawSelTopics = c.selectedTopics ?? []
+          const inferredTopics = rawSelTopics.filter(
+            (x: string) => !DEFAULT_TOPICS.includes(x) && !rawCustomTopics.includes(x),
+          )
+          setCustomTopics([...rawCustomTopics, ...inferredTopics])
+          setSelectedTopics(rawSelTopics)
           setInteractivityLevel(typeof c.interactivityLevel === 'number' ? c.interactivityLevel : 50)
           setFunctionalAlignment(c.functionalAlignment && typeof c.functionalAlignment === 'object' ? c.functionalAlignment : { technicalOrientation: 3, businessOrientation: 3, toolUsageMaturity: 3, processOrientation: 3 })
           setDepthCapacity(typeof c.depthCapacity === 'number' && c.depthCapacity >= 1 && c.depthCapacity <= 5 ? c.depthCapacity : null)
@@ -245,7 +365,53 @@ export function ExpertProfile() {
 
   const handleSaveCapability = async () => {
     try {
-      const res = await updateExpertProfile({
+      const res = await updateExpertProfile(getCapabilityUpdateBody())
+      if (res.success) showSaveFeedback('Capability', true)
+      else showSaveFeedback('Capability', false)
+    } catch {
+      showSaveFeedback('Capability', false)
+    }
+  }
+
+  // Persist objectives / audiences (and rest of capability) shortly after edits so refresh matches server.
+  useEffect(() => {
+    if (profileLoading) return
+    if (skipCapabilityAutosaveRef.current) {
+      skipCapabilityAutosaveRef.current = false
+      return
+    }
+    const t = window.setTimeout(() => {
+      updateExpertProfile(getCapabilityUpdateBody()).catch(() => {
+        /* silent — user can use Save Capability if needed */
+      })
+    }, 500)
+    return () => window.clearTimeout(t)
+  }, [
+    profileLoading,
+    selectedObjectives,
+    customObjectives,
+    selectedAudiences,
+    customAudiences,
+    selectedIndustries,
+    selectedEngagementTypes,
+    customEngagementTypes,
+    selectedTopics,
+    customTopics,
+    interactivityLevel,
+    functionalAlignment,
+    depthCapacity,
+  ])
+
+  const setAlignment = (key: string, value: number) => {
+    setFunctionalAlignment((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const canSaveExperience = showExperienceForm && experienceTitle.trim().length > 0
+
+  const completion = useMemo(
+    () =>
+      computeExpertProfileCompletion({
+        identity: { bio, linkedInUrl, photoUrl },
         capability: {
           selectedObjectives,
           customObjectives,
@@ -257,22 +423,72 @@ export function ExpertProfile() {
           selectedTopics,
           customTopics,
           interactivityLevel,
-          functionalAlignment: Object.keys(functionalAlignment).length ? functionalAlignment : undefined,
+          functionalAlignment,
           depthCapacity: depthCapacity ?? undefined,
         },
-      })
-      if (res.success) showSaveFeedback('Capability', true)
-      else showSaveFeedback('Capability', false)
-    } catch {
-      showSaveFeedback('Capability', false)
-    }
-  }
-
-  const setAlignment = (key: string, value: number) => {
-    setFunctionalAlignment((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const canSaveExperience = showExperienceForm && experienceTitle.trim().length > 0
+        experience: { entries: experienceEntries },
+        delivery: { structure: deliveryStructure, toolsPlatforms, offerFollowUp },
+        pricing: { baseFee, priceFlexibility },
+        availability: { weeklyAvailability, travelWillingness },
+      }),
+    [
+      bio,
+      linkedInUrl,
+      photoUrl,
+      selectedObjectives,
+      customObjectives,
+      selectedAudiences,
+      customAudiences,
+      selectedIndustries,
+      selectedEngagementTypes,
+      customEngagementTypes,
+      selectedTopics,
+      customTopics,
+      interactivityLevel,
+      functionalAlignment,
+      depthCapacity,
+      experienceEntries,
+      deliveryStructure,
+      toolsPlatforms,
+      offerFollowUp,
+      baseFee,
+      priceFlexibility,
+      weeklyAvailability,
+      travelWillingness,
+    ],
+  )
+  const nextMissing = completion.missingSections[0]
+  const remainingCount = completion.missingSections.length
+  const strengthTone =
+    completion.percent === 100 ? 'complete' : completion.percent < 40 ? 'low' : completion.percent < 80 ? 'medium' : 'high'
+  const strengthBannerClass =
+    strengthTone === 'low'
+      ? 'bg-[#FEE2E2]'
+      : strengthTone === 'medium'
+        ? 'bg-[#FEF3C7]'
+        : strengthTone === 'high'
+          ? 'bg-[#ECFDF3]'
+          : 'bg-[#DCFCE7]'
+  const strengthIconClass =
+    strengthTone === 'low'
+      ? 'bg-red-500'
+      : strengthTone === 'medium'
+        ? 'bg-amber-500'
+        : 'bg-green-600'
+  const strengthTextClass =
+    strengthTone === 'low'
+      ? 'text-red-600'
+      : strengthTone === 'medium'
+        ? 'text-amber-700'
+        : 'text-green-700'
+  const strengthMessage =
+    completion.percent === 100
+      ? 'Profile complete - you are fully optimized for matching'
+      : strengthTone === 'low'
+        ? `Limited visibility - complete ${remainingCount} more section${remainingCount > 1 ? 's' : ''} to improve matching`
+        : strengthTone === 'medium'
+          ? `Good progress - ${remainingCount} section${remainingCount > 1 ? 's are' : ' is'} still pending`
+          : `Almost complete - finish ${remainingCount} more section${remainingCount > 1 ? 's' : ''}`
 
   const handleSaveExperience = async () => {
     if (!canSaveExperience) return
@@ -426,30 +642,40 @@ export function ExpertProfile() {
               <h2 className="text-base font-semibold text-gray-900">Profile Strength</h2>
               <p className="text-sm text-gray-500 mt-0.5">Complete all sections to maximize your opportunities</p>
             </div>
-            <span className="text-lg font-semibold shrink-0" style={{ color: ACCENT }}>20%</span>
+            <span className="text-lg font-semibold shrink-0" style={{ color: ACCENT }}>
+              {completion.percent}%
+            </span>
           </div>
           <div className="mt-3 h-2 w-full rounded-full bg-gray-200 overflow-hidden">
-            <div className="h-full rounded-full bg-gray-700" style={{ width: '20%' }} />
+            <div className="h-full rounded-full bg-gray-700" style={{ width: `${completion.percent}%` }} />
           </div>
-          <div className="mt-4 rounded-lg px-4 py-3 flex items-start gap-3 bg-[#FEE2E2]">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500 text-white text-sm font-bold">!</span>
-            <p className="text-sm font-medium text-red-600">Limited visibility - Complete more sections to improve matching</p>
+          <div className={`mt-4 rounded-lg px-4 py-3 flex items-start gap-3 ${strengthBannerClass}`}>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold ${strengthIconClass}`}>
+              {completion.percent === 100 ? '✓' : '!'}
+            </span>
+            <p className={`text-sm font-medium ${strengthTextClass}`}>{strengthMessage}</p>
           </div>
         </div>
 
-        {/* AI Suggestions */}
-        <div className="rounded-xl border border-gray-200 shadow-sm p-5 mb-6" style={{ backgroundColor: '#DBEEFA' }}>
-          <div className="flex items-start gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#1A97DA]">
-              <IconSparkles />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold text-gray-900">AI Suggestions</h2>
-              <p className="text-sm text-gray-700 mt-0.5">Complete &quot;Capability&quot; section next - it has the highest impact on matching</p>
+        {/* AI Suggestions: icon column | text column (body + CTA align with title, not under icon) */}
+        <div
+          className="mb-6 w-full rounded-xl border px-5 py-5 sm:px-6 sm:py-6"
+          style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }}
+        >
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex shrink-0 items-start justify-center pt-0.5">
+              <AiSuggestionsSparkleMark />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-bold leading-tight text-[#1e3a5f]">AI Suggestions</h2>
+              <p className="mt-2 text-sm font-normal leading-relaxed text-[#64748b]">
+                {nextMissing
+                  ? `Complete "${EXPERT_SECTION_LABELS[nextMissing]}" section next to improve profile strength`
+                  : 'Great work - all profile sections are complete'}
+              </p>
               <button
                 type="button"
-                className="mt-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
-                style={{ backgroundColor: ACCENT }}
+                className="mt-4 rounded-md border border-[#e2e8f0] bg-white px-4 py-2.5 text-sm font-bold text-[#1e293b] shadow-sm transition-colors duration-200 hover:border-[#0084A3] hover:bg-[#0084A3] hover:text-white sm:mt-5"
               >
                 Improve Profile with AI
               </button>
@@ -469,7 +695,7 @@ export function ExpertProfile() {
                   className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50/50"
                   onClick={() => toggle(section.id)}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#1A97DA]">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#0084A3]">
                     <Icon />
                   </span>
                   <div className="flex-1 min-w-0">
@@ -505,7 +731,7 @@ export function ExpertProfile() {
                           onChange={(e) => setBio(e.target.value)}
                           placeholder="Tell businesses about your expertise and approach..."
                           rows={4}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         />
                       </div>
                       <div>
@@ -515,7 +741,7 @@ export function ExpertProfile() {
                           value={linkedInUrl}
                           onChange={(e) => setLinkedInUrl(e.target.value)}
                           placeholder="https://linkedin.com/in/yourprofile"
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         />
                       </div>
                       <div>
@@ -525,7 +751,7 @@ export function ExpertProfile() {
                           value={photoUrl}
                           onChange={(e) => setPhotoUrl(e.target.value)}
                           placeholder="https://example.com/photo.jpg"
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         />
                       </div>
                       <button
@@ -563,9 +789,15 @@ export function ExpertProfile() {
                                 }`}
                                 style={isActive && !isCustom ? { borderColor: SELECTED_TEAL, backgroundColor: SELECTED_TEAL } : undefined}
                                 onClick={() => {
+                                  const isDefault = DEFAULT_OBJECTIVES.includes(label)
+                                  const wasSelected = selectedObjectives.includes(label)
                                   setSelectedObjectives((prev) =>
                                     prev.includes(label) ? prev.filter((v) => v !== label) : [...prev, label],
                                   )
+                                  // Custom entries: removing selection drops them from the list; defaults stay available.
+                                  if (!isDefault && wasSelected) {
+                                    setCustomObjectives((prev) => prev.filter((v) => v !== label))
+                                  }
                                 }}
                               >
                                 <span>{label}</span>
@@ -582,7 +814,7 @@ export function ExpertProfile() {
                               placeholder="e.g., Branding, Marketing..."
                               value={customObjectiveInput}
                               onChange={(e) => setCustomObjectiveInput(e.target.value)}
-                              className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                              className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                             />
                             <button
                               type="button"
@@ -623,9 +855,14 @@ export function ExpertProfile() {
                                 }`}
                                 style={isActive && !isCustom ? { borderColor: SELECTED_TEAL, backgroundColor: SELECTED_TEAL } : undefined}
                                 onClick={() => {
+                                  const isDefault = DEFAULT_AUDIENCES.includes(label)
+                                  const wasSelected = selectedAudiences.includes(label)
                                   setSelectedAudiences((prev) =>
                                     prev.includes(label) ? prev.filter((v) => v !== label) : [...prev, label],
                                   )
+                                  if (!isDefault && wasSelected) {
+                                    setCustomAudiences((prev) => prev.filter((v) => v !== label))
+                                  }
                                 }}
                               >
                                 <span>{label}</span>
@@ -642,7 +879,7 @@ export function ExpertProfile() {
                               placeholder="e.g., Board Members, Volunteers..."
                               value={customAudienceInput}
                               onChange={(e) => setCustomAudienceInput(e.target.value)}
-                              className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                              className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                             />
                             <button
                               type="button"
@@ -693,89 +930,98 @@ export function ExpertProfile() {
                         </div>
                       </div>
 
-                      {/* Engagement Types You Offer */}
+                      {/* Engagement Types You Offer — cards for defaults, violet chips for custom */}
                       <div>
                         <h4 className="text-sm font-semibold text-gray-900">Engagement Types You Offer</h4>
                         <p className="text-xs text-gray-500 mb-3">
                           Select the types of engagements you&apos;re open to delivering
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {[
-                            { title: 'Keynote Session', intensity: 'low intensity', outcome: 'low outcome' },
-                            { title: 'Panel Discussion', intensity: 'low intensity', outcome: 'low outcome' },
-                            { title: 'Fireside Chat', intensity: 'low intensity', outcome: 'medium outcome' },
-                            { title: 'Workshop (Single Day)', intensity: 'high intensity', outcome: 'medium outcome' },
-                            { title: 'Workshop (Multi-Day)', intensity: 'high intensity', outcome: 'high outcome' },
-                            { title: 'Bootcamp', intensity: 'high intensity', outcome: 'high outcome' },
-                            { title: 'Coaching (1-on-1)', intensity: 'high intensity', outcome: 'high outcome' },
-                            { title: 'Coaching (Group)', intensity: 'high intensity', outcome: 'high outcome' },
-                            { title: 'Mentorship Program', intensity: 'medium intensity', outcome: 'high outcome' },
-                            { title: 'Advisory Session', intensity: 'medium intensity', outcome: 'high outcome' },
-                            { title: 'Strategy Offsite', intensity: 'high intensity', outcome: 'high outcome' },
-                            { title: 'Roundtable', intensity: 'medium intensity', outcome: 'medium outcome' },
-                            { title: 'Hackathon', intensity: 'high intensity', outcome: 'high outcome' },
-                            { title: 'Masterclass', intensity: 'medium intensity', outcome: 'high outcome' },
-                            { title: 'Webinar', intensity: 'low intensity', outcome: 'low outcome' },
-                            { title: 'Training Program', intensity: 'high intensity', outcome: 'high outcome' },
-                            { title: 'Implementation Sprint', intensity: 'high intensity', outcome: 'high outcome' },
-                          ]
-                            .concat(customEngagementTypes.map((t) => ({ title: t, intensity: 'medium intensity', outcome: 'medium outcome' })))
-                            .map((item) => {
-                              const isSelected = selectedEngagementTypes.includes(item.title)
+                          {DEFAULT_ENGAGEMENT_TYPES.map((item) => {
+                            const isSelected = selectedEngagementTypes.includes(item.title)
+                            return (
+                              <button
+                                key={item.title}
+                                type="button"
+                                className="flex flex-col items-start rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-gray-300"
+                                style={{
+                                  borderColor: isSelected ? SELECTED_TEAL : undefined,
+                                  boxShadow: isSelected ? `0 0 0 1px ${SELECTED_TEAL}` : undefined,
+                                  backgroundColor: isSelected ? '#f0fdf9' : undefined,
+                                }}
+                                onClick={() => {
+                                  setSelectedEngagementTypes((prev) =>
+                                    prev.includes(item.title) ? prev.filter((v) => v !== item.title) : [...prev, item.title],
+                                  )
+                                }}
+                              >
+                                <span className="pr-6 text-sm font-semibold text-gray-900">{item.title}</span>
+                                <span className="mt-1.5 text-xs leading-snug">
+                                  <span className={ENGAGEMENT_INTENSITY_STYLE(item.intensity)}>{item.intensity}</span>
+                                  <span className="mx-1.5 text-gray-300">·</span>
+                                  <span className={ENGAGEMENT_OUTCOME_STYLE(item.outcome)}>{item.outcome}</span>
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {customEngagementTypes.length > 0 && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {customEngagementTypes.map((label) => {
+                              const isActive = selectedEngagementTypes.includes(label)
                               return (
                                 <button
-                                  key={item.title}
+                                  key={label}
                                   type="button"
-                                  className="relative flex flex-col items-start rounded-xl border px-4 py-3 text-left"
-                                  style={{
-                                    borderColor: isSelected ? SELECTED_TEAL : '#E5E7EB',
-                                    backgroundColor: isSelected ? '#F0FBFF' : 'white',
-                                  }}
+                                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm transition ${
+                                    isActive ? 'text-white' : 'border-[#7C3AED] bg-white text-[#7C3AED]'
+                                  }`}
+                                  style={
+                                    isActive
+                                      ? { borderColor: CUSTOM_ENGAGEMENT_VIOLET, backgroundColor: CUSTOM_ENGAGEMENT_VIOLET }
+                                      : undefined
+                                  }
                                   onClick={() => {
+                                    const wasSelected = selectedEngagementTypes.includes(label)
                                     setSelectedEngagementTypes((prev) =>
-                                      prev.includes(item.title) ? prev.filter((v) => v !== item.title) : [...prev, item.title],
+                                      prev.includes(label) ? prev.filter((v) => v !== label) : [...prev, label],
                                     )
+                                    if (wasSelected) {
+                                      setCustomEngagementTypes((prev) => prev.filter((v) => v !== label))
+                                    }
                                   }}
                                 >
-                                  {isSelected && (
-                                    <span className="absolute top-3 right-3" style={{ color: SELECTED_TEAL }} aria-hidden>
-                                      ✓
-                                    </span>
-                                  )}
-                                  <span className="text-sm font-semibold text-gray-900">{item.title}</span>
-                                  <span className="mt-1 text-xs">
-                                    <span className={item.intensity.includes('low') ? 'text-green-600' : item.intensity.includes('medium') ? 'text-orange-500' : 'text-red-500'}>
-                                      {item.intensity}
-                                    </span>
-                                    <span className="text-gray-400"> • </span>
-                                    <span className={item.outcome.includes('low') ? 'text-gray-600' : item.outcome.includes('medium') ? 'text-orange-500' : 'text-green-600'}>
-                                      {item.outcome}
-                                    </span>
-                                  </span>
+                                  <span>{label}</span>
+                                  {isActive && <span className="text-base font-normal leading-none">×</span>}
                                 </button>
                               )
                             })}
-                        </div>
-                        <div className="mt-4 flex items-center gap-2">
-                          <div className="w-full rounded-xl bg-gray-100 p-4 flex items-center gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-600 mb-2">Add Custom Engagement Type (Not in List Above)</p>
-                              <input
-                                type="text"
-                                placeholder="e.g., Company Retreat, Board Advisory..."
-                                value={customEngagementInput}
-                                onChange={(e) => setCustomEngagementInput(e.target.value)}
-                                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
-                              />
-                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-4 rounded-xl bg-[#F3F4F6] p-4">
+                          <p className="text-sm font-medium text-gray-600 mb-3">
+                            Add Custom Engagement Type (Not in list above)
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="e.g., Company Retreat, Board Advisory..."
+                              value={customEngagementInput}
+                              onChange={(e) => setCustomEngagementInput(e.target.value)}
+                              className="h-11 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
+                            />
                             <button
                               type="button"
-                              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-lg font-semibold text-white shrink-0"
+                              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-lg font-semibold text-white shadow-sm"
                               style={{ backgroundColor: SELECTED_TEAL }}
                               aria-label="Add custom engagement type"
                               onClick={() => {
                                 const value = customEngagementInput.trim()
                                 if (!value) return
+                                const defaultTitles = new Set(DEFAULT_ENGAGEMENT_TYPES.map((e) => e.title))
+                                if (defaultTitles.has(value)) return
                                 if (!customEngagementTypes.includes(value)) setCustomEngagementTypes((prev) => [...prev, value])
                                 setSelectedEngagementTypes((prev) => (prev.includes(value) ? prev : [...prev, value]))
                                 setCustomEngagementInput('')
@@ -884,7 +1130,7 @@ export function ExpertProfile() {
                                 onClick={() => setDepthCapacity(item.value)}
                                 className={`flex flex-col items-center justify-center rounded-lg border px-2 py-3 text-sm font-medium ${
                                   active
-                                    ? 'border-[#0EA5E9] bg-white text-gray-900'
+                                    ? 'border-[#0084A3] bg-white text-gray-900'
                                     : 'border-gray-200 bg-white text-gray-800'
                                 }`}
                               >
@@ -917,9 +1163,14 @@ export function ExpertProfile() {
                                 }`}
                                 style={isActive && !isCustom ? { borderColor: SELECTED_TEAL, backgroundColor: SELECTED_TEAL } : undefined}
                                 onClick={() => {
+                                  const isDefault = DEFAULT_TOPICS.includes(label)
+                                  const wasSelected = selectedTopics.includes(label)
                                   setSelectedTopics((prev) =>
                                     prev.includes(label) ? prev.filter((v) => v !== label) : [...prev, label],
                                   )
+                                  if (!isDefault && wasSelected) {
+                                    setCustomTopics((prev) => prev.filter((v) => v !== label))
+                                  }
                                 }}
                               >
                                 <span>{label}</span>
@@ -936,7 +1187,7 @@ export function ExpertProfile() {
                               placeholder="e.g., Blockchain, UX Design..."
                               value={customTopicInput}
                               onChange={(e) => setCustomTopicInput(e.target.value)}
-                              className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                              className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                             />
                             <button
                               type="button"
@@ -1062,34 +1313,54 @@ export function ExpertProfile() {
                         </div>
 
                         <div className="mt-4 space-y-3">
-                          <input
-                            type="text"
-                            value={experienceTitle}
-                            onChange={(e) => setExperienceTitle(e.target.value)}
-                            placeholder="Engagement title"
-                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
-                          />
-                          <input
-                            type="text"
-                            value={experienceOutcome}
-                            onChange={(e) => setExperienceOutcome(e.target.value)}
-                            placeholder="Outcome achieved"
-                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
-                          />
-                          <input
-                            type="text"
-                            value={experienceAudience}
-                            onChange={(e) => setExperienceAudience(e.target.value)}
-                            placeholder="Audience type"
-                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
-                          />
-                          <input
-                            type="text"
-                            value={experienceYear}
-                            onChange={(e) => setExperienceYear(e.target.value)}
-                            placeholder="Year"
-                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
-                          />
+                          <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
+                            <label htmlFor="experience-title" className="w-full text-sm font-medium text-gray-700 md:w-44">
+                              Engagement title
+                            </label>
+                            <input
+                              id="experience-title"
+                              type="text"
+                              value={experienceTitle}
+                              onChange={(e) => setExperienceTitle(e.target.value)}
+                              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
+                            <label htmlFor="experience-outcome" className="w-full text-sm font-medium text-gray-700 md:w-44">
+                              Outcome achieved
+                            </label>
+                            <input
+                              id="experience-outcome"
+                              type="text"
+                              value={experienceOutcome}
+                              onChange={(e) => setExperienceOutcome(e.target.value)}
+                              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
+                            <label htmlFor="experience-audience" className="w-full text-sm font-medium text-gray-700 md:w-44">
+                              Audience type
+                            </label>
+                            <input
+                              id="experience-audience"
+                              type="text"
+                              value={experienceAudience}
+                              onChange={(e) => setExperienceAudience(e.target.value)}
+                              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
+                            <label htmlFor="experience-year" className="w-full text-sm font-medium text-gray-700 md:w-44">
+                              Year
+                            </label>
+                            <input
+                              id="experience-year"
+                              type="text"
+                              value={experienceYear}
+                              onChange={(e) => setExperienceYear(e.target.value)}
+                              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
+                            />
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -1119,7 +1390,7 @@ export function ExpertProfile() {
                           onChange={(e) => setDeliveryStructure(e.target.value)}
                           placeholder="Describe your typical session structure..."
                           rows={4}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         />
                       </div>
                       <div>
@@ -1129,7 +1400,7 @@ export function ExpertProfile() {
                           value={toolsPlatforms}
                           onChange={(e) => setToolsPlatforms(e.target.value)}
                           placeholder="e.g., Zoom, Miro, Google Workspace"
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         />
                       </div>
                       <div>
@@ -1164,7 +1435,7 @@ export function ExpertProfile() {
                           type="number"
                           value={baseFee}
                           onChange={(e) => setBaseFee(e.target.value)}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         />
                       </div>
                       <div>
@@ -1172,7 +1443,7 @@ export function ExpertProfile() {
                         <select
                           value={priceFlexibility}
                           onChange={(e) => setPriceFlexibility(e.target.value)}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         >
                           <option>Fixed - No negotiation</option>
                           <option>Moderate - Some flexibility</option>
@@ -1201,7 +1472,7 @@ export function ExpertProfile() {
                           value={weeklyAvailability}
                           onChange={(e) => setWeeklyAvailability(e.target.value)}
                           placeholder="e.g., 2-3 days per week"
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         />
                       </div>
                       <div>
@@ -1209,7 +1480,7 @@ export function ExpertProfile() {
                         <select
                           value={travelWillingness}
                           onChange={(e) => setTravelWillingness(e.target.value)}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1A97DA]/20 focus:border-[#1A97DA]"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0084A3]/20 focus:border-[#0084A3]"
                         >
                           <option>Select travel willingness</option>
                           <option>No travel - Online only</option>

@@ -67,6 +67,7 @@ const BUDGET_BANDS = [
 ]
 const BUDGET_TYPE_OPTIONS = ['Per session', 'Per day', 'Per program', 'Monthly Retainer', 'Per participant', 'Fixed project']
 const CURRENCY_OPTIONS = ['INR (₹)', 'USD ($)', 'EUR (€)', 'GBP (£)']
+const SHOW_ADVANCED_REQUIREMENT_DETAILS = false
 const BUDGET_FLEXIBILITY_OPTIONS = [
   { id: 'fixed', title: 'Fixed', description: 'Strictly within budget - maximizes cost efficiency', tag: 'No negotiation' },
   { id: 'slightly', title: 'Slightly Flexible', description: 'Minor adjustments possible for strong fit', tag: '±10%' },
@@ -1690,7 +1691,7 @@ export function CreateRequirement() {
                   ))}
                 </div>
 
-                {audienceSelected.size > 0 && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && audienceSelected.size > 0 && (
                   <div className="rounded-xl border border-gray-200 bg-[#F4F8FA] p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-5">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-300 text-gray-700 text-xs font-bold">i</span>
@@ -1730,7 +1731,7 @@ export function CreateRequirement() {
                   ))}
                 </div>
 
-                {senioritySelected.size > 0 && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && senioritySelected.size > 0 && (
                   <div className="rounded-xl border border-gray-200 bg-[#F4F8FA] p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-gray-900 mb-5">Seniority Profile</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1803,6 +1804,7 @@ export function CreateRequirement() {
                   </div>
                 </div>
 
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && (
                 <div className="rounded-xl border border-gray-200 bg-[#F0F4F8] p-6 shadow-sm">
                   <h2 className="text-lg font-bold text-gray-900 mb-5">Knowledge Profile</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1821,6 +1823,7 @@ export function CreateRequirement() {
                     ))}
                   </div>
                 </div>
+                )}
 
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 mb-4">Functional Background</h2>
@@ -1831,7 +1834,7 @@ export function CreateRequirement() {
                   </div>
                 </div>
 
-                {functionalSelected.size > 0 && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && functionalSelected.size > 0 && (
                   <div className="rounded-xl border border-sky-200 bg-[#F4F8FA] p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-gray-900 mb-5">Functional Profile</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1860,7 +1863,7 @@ export function CreateRequirement() {
                   </div>
                 </div>
 
-                {industrySelected.size > 0 && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && industrySelected.size > 0 && (
                   <div className="rounded-xl border border-sky-200 bg-[#F4F8FA] p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-gray-900 mb-5">Industry Profile</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -2021,7 +2024,7 @@ export function CreateRequirement() {
                   </div>
                 </div>
 
-                {deliverablesSelected.size > 0 && (() => {
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && deliverablesSelected.size > 0 && (() => {
                   const activeId = (deliverableDetailsActiveId && deliverablesSelected.has(deliverableDetailsActiveId) ? deliverableDetailsActiveId : Array.from(deliverablesSelected)[0]) ?? null
                   const details = activeId ? (deliverableDetailsById[activeId] ?? { format: '', deliveryTimeline: '', ownership: '', measurableOutput: false }) : null
                   const selectedLabels = Array.from(deliverablesSelected).map(id => EXPECTED_DELIVERABLES.find(d => d.id === id)!.label)
@@ -2134,7 +2137,7 @@ export function CreateRequirement() {
                   </div>
                 </div>
 
-                {engagementTypeSelected && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && engagementTypeSelected && (
                   <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-5">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-[#2293B4] text-xs font-bold">i</span>
@@ -2190,7 +2193,7 @@ export function CreateRequirement() {
                   </div>
                 </div>
 
-                {(deliveryModeSelected === 'in-person') && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && (deliveryModeSelected === 'in-person') && (
                   <div className="rounded-xl border border-sky-200 bg-[#F4F8FA] p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-gray-900 mb-5">Delivery Details</h3>
                     <div className="space-y-4 mb-5">
@@ -2218,7 +2221,7 @@ export function CreateRequirement() {
                   </div>
                 )}
 
-                {deliveryModeSelected === 'hybrid' && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && deliveryModeSelected === 'hybrid' && (
                   <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-gray-900 mb-5">Delivery Details</h3>
                     <div className="space-y-4 mb-5">
@@ -2274,7 +2277,7 @@ export function CreateRequirement() {
                   </div>
                 )}
 
-                {(deliveryModeSelected === 'virtual' || deliveryModeSelected === 'blended') && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && (deliveryModeSelected === 'virtual' || deliveryModeSelected === 'blended') && (
                   <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-gray-900 mb-5">Delivery Details</h3>
                     <div className="space-y-4 mb-5">
@@ -2324,7 +2327,7 @@ export function CreateRequirement() {
                   </div>
                 )}
 
-                {deliveryModeSelected === 'async' && (
+                {SHOW_ADVANCED_REQUIREMENT_DETAILS && deliveryModeSelected === 'async' && (
                   <div className="rounded-xl border border-sky-200 bg-[#F4F8FA] p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-gray-900 mb-5">Delivery Details</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -2557,7 +2560,7 @@ export function CreateRequirement() {
                       <input type="text" value={schedulingRestrictions} onChange={(e) => setSchedulingRestrictions(e.target.value)} placeholder="e.g., No Mondays, Must avoid quarter-end weeks" className={inputClass} />
                     </div>
                   </div>
-                  {(preferredTimeSlots.size > 0 || blackoutDates.trim() !== '' || dailyTimeWindow.trim() !== '' || timezone.trim() !== '' || schedulingRestrictions.trim() !== '') && (
+                  {SHOW_ADVANCED_REQUIREMENT_DETAILS && (preferredTimeSlots.size > 0 || blackoutDates.trim() !== '' || dailyTimeWindow.trim() !== '' || timezone.trim() !== '' || schedulingRestrictions.trim() !== '') && (
                     <div className="mt-6 rounded-xl border border-gray-200 bg-[#F4F8FA] p-6 shadow-sm">
                       <h3 className="text-lg font-bold text-gray-900 mb-5">Scheduling Profile</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">

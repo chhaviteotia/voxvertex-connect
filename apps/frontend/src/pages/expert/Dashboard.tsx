@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
 import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
 import { IconEye, IconCheckSquare, IconTrendingUp, IconChart, IconTarget, IconUsers, IconCalendar, IconDollar } from '../../components/layout/DashboardIcons'
+import { getExpertProfile, type ExpertProfileData } from '../../api/expertProfile'
+import { computeExpertProfileCompletion, EXPERT_SECTION_LABELS } from '../../utils/expertProfileCompletion'
 
 const TEAL = '#008C9E'
 
@@ -45,13 +48,31 @@ const RECENT_ACTIVITY = [
   { text: 'Your profile was viewed by TechCorp India', time: '2 days ago' },
 ]
 
-const MISSING_SECTIONS = ['Professional bio', 'Portfolio/Experience', 'Availability calendar', 'Pricing details', 'Past engagements']
-
 export function ExpertDashboard() {
   const user = useAppSelector(selectUser) as { name?: string; email?: string } | null
   const prefix = (user?.email || '').split('@')[0] || 'John'
   const displayName = user?.name || (prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase() + ' Doe')
   const firstName = displayName.split(/\s+/)[0] || 'John'
+  const [profileData, setProfileData] = useState<ExpertProfileData | undefined>(undefined)
+
+  useEffect(() => {
+    let cancelled = false
+    getExpertProfile()
+      .then((res) => {
+        if (!cancelled && res.success) {
+          setProfileData(res.data)
+        }
+      })
+      .catch(() => {
+        // Keep card usable with fallback values if profile API fails on dashboard.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const completion = useMemo(() => computeExpertProfileCompletion(profileData), [profileData])
+  const missingLabels = completion.missingSections.map((section) => EXPERT_SECTION_LABELS[section])
 
   return (
     <DashboardLayout
@@ -76,18 +97,27 @@ export function ExpertDashboard() {
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-[#007B8A] bg-transparent text-[#007B8A] text-sm font-normal" style={{ fontStyle: 'italic' }} aria-hidden>i</span>
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-bold text-[#1e293b]">Complete Your Profile</h2>
-                <p className="text-sm text-[#64748b] mt-0.5">Profile Strength: 20% — Boost your visibility and match rate</p>
+                <p className="text-sm text-[#64748b] mt-0.5">
+                  Profile Strength: {completion.percent}% — Boost your visibility and match rate
+                </p>
                 <div className="mt-3 h-2 w-full rounded-full bg-[#cbd5e1] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#1e293b]" style={{ width: '20%' }} />
+                  <div className="h-full rounded-full bg-[#1e293b]" style={{ width: `${completion.percent}%` }} />
                 </div>
-               <p className="text-base font-semibold text-[#1e293b] mt-3">Missing sections:</p>
-               <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 items-baseline">
-                 {MISSING_SECTIONS.map((section, i) => (
-                   <span key={section} className="text-sm font-normal text-black border border-gray-200 rounded px-1.5 py-0.5" style={{ borderWidth: '1px' }}>
-                     {section}{i < MISSING_SECTIONS.length - 1 ? ',' : ''}
-                   </span>
-                 ))}
-               </div>
+                {missingLabels.length > 0 ? (
+                  <>
+                    <p className="text-base font-semibold text-[#1e293b] mt-3">Missing sections:</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 items-baseline">
+                      {missingLabels.map((section, i) => (
+                        <span key={section} className="text-sm font-normal text-black border border-gray-200 rounded px-1.5 py-0.5" style={{ borderWidth: '1px' }}>
+                          {section}
+                          {i < missingLabels.length - 1 ? ',' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-base font-semibold text-[#166534] mt-3">All profile sections are complete.</p>
+                )}
               </div>
             </div>
             <Link
@@ -166,6 +196,7 @@ export function ExpertDashboard() {
                   <div className="flex flex-wrap gap-2">
                     <Link
                       to={`/expert/browse/${opp.id}`}
+                      state={{ title: opp.title, company: opp.company }}
                       className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 no-underline"
                       style={{ backgroundColor: TEAL }}
                     >

@@ -119,6 +119,7 @@ async function getSessions(req, res) {
     );
     const items = sessions.map((s) => ({
       id: s._id.toString(),
+      requirementId: s.requirementId ? s.requirementId.toString() : "",
       companyName: s.companyName,
       sessionType: s.sessionType || "",
       status: s.status,
@@ -126,6 +127,7 @@ async function getSessions(req, res) {
       startTime: s.startTime || "",
       endTime: s.endTime || "",
       location: s.location || "",
+      note: s.note || "",
     }));
     return res.json({ success: true, data: items });
   } catch (err) {

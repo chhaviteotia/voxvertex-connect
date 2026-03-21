@@ -125,7 +125,7 @@ export function ExpertProposals() {
     >
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-5xl font-bold text-[#111827]">My Proposals</h1>
+          <h1 className="text-2xl font-bold text-[#111827]">My Proposals</h1>
           <p className="mt-1 text-sm text-gray-500">Track your submitted proposals</p>
         </div>
 
@@ -146,23 +146,23 @@ export function ExpertProposals() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-semibold text-[#111827]">{card.title}</h2>
+                      <h2 className="text-lg font-semibold text-[#111827]">{card.title}</h2>
                       <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${STATUS_CLASSES[card.statusTone]}`}>
                         {card.statusLabel}
                       </span>
                     </div>
-                    <p className="mt-1 text-lg text-gray-500">{card.companyName}</p>
+                    <p className="mt-1 text-sm text-gray-500">{card.companyName}</p>
                   </div>
                   <p className="shrink-0 text-sm text-gray-400">{card.timeAgo}</p>
                 </div>
 
-                <div className="mt-9 flex items-end justify-between gap-3">
-                  <p className="text-lg text-gray-500">
+                <div className="mt-5 flex items-end justify-between gap-3">
+                  <p className="text-sm text-gray-500">
                     Proposed Fee: <span className="font-semibold text-[#111827]">{card.proposedFee}</span>
                   </p>
                   <button
                     type="button"
-                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-[#0096C7] hover:bg-[#0096C7] hover:text-white"
                   >
                     View Details
                   </button>

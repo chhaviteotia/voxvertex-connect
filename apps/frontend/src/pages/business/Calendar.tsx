@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarBottomItems, businessSidebarItems } from '../../config/businessNav'
 import { IconCalendar, IconClock, IconMapPin, IconVideo } from '../../components/layout/DashboardIcons'
+import { listRequirements, type RequirementResponse } from '../../api/requirements'
+import {
+  getBusinessScheduledSessions,
+  scheduleSessionsForRequirement,
+  type BusinessScheduledSession,
+} from '../../api/businessCalendar'
 
 function IconGoogleCalendarButton() {
   return (
@@ -64,9 +70,21 @@ function IconChevronDownSmall() {
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const scheduledDateKeys = new Set(['2026-03-08', '2026-03-15', '2026-03-20'])
-const TIME_HOURS = ['10', '11', '12', '01', '02', '03', '04']
-const TIME_MINUTES = ['51', '52', '53', '54', '55', '56', '57']
+const TIME_HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'))
+const TIME_MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
 const TIME_MERIDIEM = ['PM', 'AM']
+const OUTCOME_TITLES: Record<string, string> = {
+  'skill-development': 'Skill Development',
+  'revenue-generation': 'Revenue Generation',
+  'hiring-talent': 'Hiring & Talent',
+  'brand-positioning': 'Brand Positioning',
+  'leadership-alignment': 'Leadership Alignment',
+  'innovation-problem-solving': 'Innovation & Problem Solving',
+  'compliance-risk': 'Compliance & Risk',
+  'community-networking': 'Community & Networking',
+  'product-adoption': 'Product Adoption',
+  'behavior-change': 'Behavior Change',
+}
 
 type CalendarCell = {
   key: string
@@ -121,6 +139,16 @@ function getCalendarCells(year: number, month: number): CalendarCell[] {
   return cells
 }
 
+function getRequirementTitle(formData: Record<string, unknown>): string {
+  const outcome = formData?.selectedOutcome as string | undefined
+  if (outcome && OUTCOME_TITLES[outcome]) return OUTCOME_TITLES[outcome]
+  const objective = (formData?.objective as string | undefined)?.trim()
+  if (objective) return objective
+  const audience = formData?.audienceSelected as string[] | undefined
+  if (Array.isArray(audience) && audience.length > 0) return `${audience.slice(0, 2).join(', ')} engagement`
+  return 'Expert requirement'
+}
+
 export function BusinessCalendar() {
   const today = new Date()
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -136,6 +164,13 @@ export function BusinessCalendar() {
   const [endTime, setEndTime] = useState({ hour: '10', minute: '51', meridiem: 'PM' })
   const [isRequirementOpen, setIsRequirementOpen] = useState(false)
   const [selectedRequirement, setSelectedRequirement] = useState('Choose a requirement')
+  const [selectedRequirementId, setSelectedRequirementId] = useState('')
+  const [locationValue, setLocationValue] = useState('')
+  const [notesValue, setNotesValue] = useState('')
+  const [scheduling, setScheduling] = useState(false)
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+  const [requirementOptionsWithId, setRequirementOptionsWithId] = useState<Array<{ id: string; title: string }>>([])
+  const [dynamicSessions, setDynamicSessions] = useState<BusinessScheduledSession[]>([])
   const startTimeRef = useRef<HTMLDivElement | null>(null)
   const endTimeRef = useRef<HTMLDivElement | null>(null)
   const requirementRef = useRef<HTMLDivElement | null>(null)
@@ -176,6 +211,44 @@ export function BusinessCalendar() {
   ]
 
   useEffect(() => {
+    let cancelled = false
+    listRequirements({ status: 'published', limit: 200, skip: 0 })
+      .then((res) => {
+        if (cancelled || !res.success || !Array.isArray(res.requirements)) return
+        const titles = res.requirements.map((r: RequirementResponse) =>
+          ({
+            id: r.id,
+            title: getRequirementTitle((r.formData || {}) as Record<string, unknown>),
+          }),
+        )
+        const map = new Map<string, string>()
+        titles.forEach((t) => {
+          if (!map.has(t.id)) map.set(t.id, t.title)
+        })
+        const list = Array.from(map.entries()).map(([id, title]) => ({ id, title }))
+        setRequirementOptionsWithId(list)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getBusinessScheduledSessions()
+      .then((res) => {
+        if (!cancelled && res.success && Array.isArray(res.data)) {
+          setDynamicSessions(res.data)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (!isScheduleModalOpen) return
 
     const handleDocumentMouseDown = (event: MouseEvent) => {
@@ -195,6 +268,9 @@ export function BusinessCalendar() {
     document.addEventListener('mousedown', handleDocumentMouseDown)
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown)
   }, [isScheduleModalOpen, isRequirementOpen, openTimePicker])
+
+  const upcomingDynamicSessions = dynamicSessions.filter((s) => new Date(s.scheduledDate) >= todayStart)
+  const pastDynamicSessions = dynamicSessions.filter((s) => new Date(s.scheduledDate) < todayStart)
 
   return (
     <DashboardLayout
@@ -227,9 +303,9 @@ export function BusinessCalendar() {
               <button
                 key={label}
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="group inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-[#008C9E] hover:bg-[#008C9E] hover:text-white"
               >
-                <span className="text-gray-600">{icon}</span>
+                <span className="text-gray-600 transition-colors group-hover:text-white">{icon}</span>
                 {label}
               </button>
             ))}
@@ -247,7 +323,7 @@ export function BusinessCalendar() {
                 <button
                   type="button"
                   onClick={handleGoToToday}
-                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700"
+                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-[#008C9E] hover:bg-[#008C9E] hover:text-white"
                 >
                   Today
                 </button>
@@ -380,6 +456,57 @@ export function BusinessCalendar() {
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h3 className="text-2xl font-semibold text-[#0B1B3D]">Scheduled Sessions</h3>
 
+          {(upcomingDynamicSessions.length > 0 || pastDynamicSessions.length > 0) && (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-gray-500">
+                Scheduled from accepted experts ({dynamicSessions.length})
+              </p>
+              <div className="mt-3 space-y-3">
+                {upcomingDynamicSessions.map((s) => (
+                  <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-xl font-semibold text-[#0B1B3D]">{s.requirementTitle}</h4>
+                      <span className="rounded-md bg-[#E8F8EE] px-2 py-0.5 text-xs font-semibold text-[#1E8D51]">
+                        {s.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">{s.companyName} • {s.sessionType || 'Session'}</p>
+                    <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-600 md:grid-cols-3">
+                      <span className="inline-flex items-center gap-1.5">
+                        <IconCalendar className="h-4 w-4" /> {new Date(s.scheduledDate).toLocaleDateString()}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <IconClock className="h-4 w-4" /> {[s.startTime, s.endTime].filter(Boolean).join(' - ') || '—'}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        {s.location?.toLowerCase().includes('http') || s.location?.toLowerCase().includes('zoom') ? (
+                          <IconVideo className="h-4 w-4" />
+                        ) : (
+                          <IconMapPin className="h-4 w-4" />
+                        )}{' '}
+                        {s.location || '—'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {pastDynamicSessions.map((s) => (
+                  <div key={`past-${s.id}`} className="rounded-xl border border-gray-200 bg-[#FAFBFD] p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-xl font-semibold text-[#0B1B3D]">{s.requirementTitle}</h4>
+                      <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                        Completed
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">{s.companyName} • {s.sessionType || 'Session'}</p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {new Date(s.scheduledDate).toLocaleDateString()} {s.startTime ? `• ${s.startTime}` : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mt-5">
             <p className="text-sm font-semibold text-gray-500">Upcoming &amp; Pending (3)</p>
             <div className="mt-3 space-y-3">
@@ -489,34 +616,28 @@ export function BusinessCalendar() {
                   </button>
                   {isRequirementOpen && (
                     <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-lg border border-gray-200 bg-white p-1 shadow-md">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedRequirement('AI Training for Sales Team')
-                          setIsRequirementOpen(false)
-                        }}
-                        className={`w-full rounded-md px-2 py-1.5 text-left text-base ${
-                          selectedRequirement === 'AI Training for Sales Team'
-                            ? 'bg-[#0EA5C4] text-white'
-                            : 'text-[#1F2937] hover:bg-gray-50'
-                        }`}
-                      >
-                        AI Training for Sales Team
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedRequirement('Product Strategy Review')
-                          setIsRequirementOpen(false)
-                        }}
-                        className={`mt-0.5 w-full rounded-md px-2 py-1.5 text-left text-base ${
-                          selectedRequirement === 'Product Strategy Review'
-                            ? 'bg-[#0EA5C4] text-white'
-                            : 'text-[#1F2937] hover:bg-gray-50'
-                        }`}
-                      >
-                        Product Strategy Review
-                      </button>
+                      {requirementOptionsWithId.length > 0 ? (
+                        requirementOptionsWithId.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedRequirement(option.title)
+                              setSelectedRequirementId(option.id)
+                              setIsRequirementOpen(false)
+                            }}
+                            className={`mt-0.5 w-full rounded-md px-2 py-1.5 text-left text-base ${
+                              selectedRequirementId === option.id
+                                ? 'bg-[#0EA5C4] text-white'
+                                : 'text-[#1F2937] hover:bg-gray-50'
+                            }`}
+                          >
+                            {option.title}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-2 py-1.5 text-sm text-gray-500">No published requirements</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -547,44 +668,53 @@ export function BusinessCalendar() {
                       <IconClock className="h-4 w-4 text-gray-700" />
                     </button>
                     {openTimePicker === 'start' && (
-                      <div className="absolute left-0 top-[calc(100%+6px)] z-20 w-[152px] border border-gray-300 bg-white shadow-lg">
+                      <div className="absolute left-0 top-[calc(100%+6px)] z-20 w-[168px] rounded-md border border-gray-300 bg-white shadow-lg">
                         <div className="grid grid-cols-3 gap-1 border-b border-gray-200 px-1 py-1">
-                          <div className="rounded bg-[#0B84F3] py-1 text-center text-xl font-semibold text-white">{startTime.hour}</div>
-                          <div className="rounded bg-[#0B84F3] py-1 text-center text-xl font-semibold text-white">{startTime.minute}</div>
-                          <div className="rounded bg-[#0B84F3] py-1 text-center text-lg font-semibold text-white">{startTime.meridiem}</div>
+                          <div className="rounded bg-[#0B84F3] py-1 text-center text-lg font-semibold text-white">{startTime.hour}</div>
+                          <div className="rounded bg-[#0B84F3] py-1 text-center text-lg font-semibold text-white">{startTime.minute}</div>
+                          <div className="rounded bg-[#0B84F3] py-1 text-center text-base font-semibold text-white">{startTime.meridiem}</div>
                         </div>
                         <div className="grid grid-cols-3 px-1 py-1">
-                          <div className="space-y-0.5">
+                          <div
+                            className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            style={{ msOverflowStyle: 'none' }}
+                          >
                             {TIME_HOURS.map((hour) => (
                               <button
                                 key={`start-hour-${hour}`}
                                 type="button"
                                 onClick={() => setStartTime((prev) => ({ ...prev, hour }))}
-                                className="w-full py-0.5 text-center text-xl text-[#111827] hover:bg-gray-100"
+                                className="w-full rounded py-0.5 text-center text-lg text-[#111827] hover:bg-gray-100"
                               >
                                 {hour}
                               </button>
                             ))}
                           </div>
-                          <div className="space-y-0.5">
+                          <div
+                            className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            style={{ msOverflowStyle: 'none' }}
+                          >
                             {TIME_MINUTES.map((minute) => (
                               <button
                                 key={`start-minute-${minute}`}
                                 type="button"
                                 onClick={() => setStartTime((prev) => ({ ...prev, minute }))}
-                                className="w-full py-0.5 text-center text-xl text-[#111827] hover:bg-gray-100"
+                                className="w-full rounded py-0.5 text-center text-lg text-[#111827] hover:bg-gray-100"
                               >
                                 {minute}
                               </button>
                             ))}
                           </div>
-                          <div className="space-y-0.5">
+                          <div
+                            className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            style={{ msOverflowStyle: 'none' }}
+                          >
                             {TIME_MERIDIEM.map((meridiem) => (
                               <button
                                 key={`start-meridiem-${meridiem}`}
                                 type="button"
                                 onClick={() => setStartTime((prev) => ({ ...prev, meridiem }))}
-                                className="w-full py-0.5 text-center text-xl text-[#111827] hover:bg-gray-100"
+                                className="w-full rounded py-0.5 text-center text-lg text-[#111827] hover:bg-gray-100"
                               >
                                 {meridiem}
                               </button>
@@ -610,44 +740,53 @@ export function BusinessCalendar() {
                       <IconClock className="h-4 w-4 text-gray-700" />
                     </button>
                     {openTimePicker === 'end' && (
-                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-[152px] border border-gray-300 bg-white shadow-lg">
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-[168px] rounded-md border border-gray-300 bg-white shadow-lg">
                         <div className="grid grid-cols-3 gap-1 border-b border-gray-200 px-1 py-1">
-                          <div className="rounded bg-[#0B84F3] py-1 text-center text-xl font-semibold text-white">{endTime.hour}</div>
-                          <div className="rounded bg-[#0B84F3] py-1 text-center text-xl font-semibold text-white">{endTime.minute}</div>
-                          <div className="rounded bg-[#0B84F3] py-1 text-center text-lg font-semibold text-white">{endTime.meridiem}</div>
+                          <div className="rounded bg-[#0B84F3] py-1 text-center text-lg font-semibold text-white">{endTime.hour}</div>
+                          <div className="rounded bg-[#0B84F3] py-1 text-center text-lg font-semibold text-white">{endTime.minute}</div>
+                          <div className="rounded bg-[#0B84F3] py-1 text-center text-base font-semibold text-white">{endTime.meridiem}</div>
                         </div>
                         <div className="grid grid-cols-3 px-1 py-1">
-                          <div className="space-y-0.5">
+                          <div
+                            className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            style={{ msOverflowStyle: 'none' }}
+                          >
                             {TIME_HOURS.map((hour) => (
                               <button
                                 key={`end-hour-${hour}`}
                                 type="button"
                                 onClick={() => setEndTime((prev) => ({ ...prev, hour }))}
-                                className="w-full py-0.5 text-center text-xl text-[#111827] hover:bg-gray-100"
+                                className="w-full rounded py-0.5 text-center text-lg text-[#111827] hover:bg-gray-100"
                               >
                                 {hour}
                               </button>
                             ))}
                           </div>
-                          <div className="space-y-0.5">
+                          <div
+                            className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            style={{ msOverflowStyle: 'none' }}
+                          >
                             {TIME_MINUTES.map((minute) => (
                               <button
                                 key={`end-minute-${minute}`}
                                 type="button"
                                 onClick={() => setEndTime((prev) => ({ ...prev, minute }))}
-                                className="w-full py-0.5 text-center text-xl text-[#111827] hover:bg-gray-100"
+                                className="w-full rounded py-0.5 text-center text-lg text-[#111827] hover:bg-gray-100"
                               >
                                 {minute}
                               </button>
                             ))}
                           </div>
-                          <div className="space-y-0.5">
+                          <div
+                            className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            style={{ msOverflowStyle: 'none' }}
+                          >
                             {TIME_MERIDIEM.map((meridiem) => (
                               <button
                                 key={`end-meridiem-${meridiem}`}
                                 type="button"
                                 onClick={() => setEndTime((prev) => ({ ...prev, meridiem }))}
-                                className="w-full py-0.5 text-center text-xl text-[#111827] hover:bg-gray-100"
+                                className="w-full rounded py-0.5 text-center text-lg text-[#111827] hover:bg-gray-100"
                               >
                                 {meridiem}
                               </button>
@@ -697,6 +836,8 @@ export function BusinessCalendar() {
                 <div className="relative">
                   <input
                     type="text"
+                    value={locationValue}
+                    onChange={(e) => setLocationValue(e.target.value)}
                     className="w-full rounded-lg border border-gray-200 px-9 py-2.5 text-sm text-gray-700 placeholder-gray-400"
                     placeholder={locationType === 'online' ? 'https://zoom.us/j/...' : 'e.g., Bangalore, India'}
                   />
@@ -710,11 +851,16 @@ export function BusinessCalendar() {
                 <label className="mb-1 block text-sm font-medium text-gray-700">Notes (Optional)</label>
                 <textarea
                   rows={3}
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
                   className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400"
                   placeholder="Add any additional notes or instructions..."
                 />
               </div>
             </div>
+            {scheduleError && (
+              <p className="px-5 pb-1 text-sm text-red-600">{scheduleError}</p>
+            )}
 
             <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-4">
               <button
@@ -730,14 +876,46 @@ export function BusinessCalendar() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setIsScheduleModalOpen(false)
-                  setIsRequirementOpen(false)
-                  setOpenTimePicker(null)
+                disabled={scheduling}
+                onClick={async () => {
+                  setScheduleError(null)
+                  if (!selectedRequirementId) {
+                    setScheduleError('Please select a requirement.')
+                    return
+                  }
+                  if (!selectedDateKey) {
+                    setScheduleError('Please select a date.')
+                    return
+                  }
+                  setScheduling(true)
+                  try {
+                    const to12 = (t: { hour: string; minute: string; meridiem: string }) =>
+                      `${t.hour}:${t.minute} ${t.meridiem}`
+                    await scheduleSessionsForRequirement({
+                      requirementId: selectedRequirementId,
+                      sessionType: selectedRequirement,
+                      scheduledDate: selectedDateKey,
+                      startTime: to12(startTime),
+                      endTime: to12(endTime),
+                      location: locationValue.trim(),
+                      note: notesValue.trim(),
+                    })
+                    const latest = await getBusinessScheduledSessions()
+                    if (latest.success && Array.isArray(latest.data)) setDynamicSessions(latest.data)
+                    setIsScheduleModalOpen(false)
+                    setIsRequirementOpen(false)
+                    setOpenTimePicker(null)
+                    setLocationValue('')
+                    setNotesValue('')
+                  } catch (err) {
+                    setScheduleError(err instanceof Error ? err.message : 'Failed to schedule session')
+                  } finally {
+                    setScheduling(false)
+                  }
                 }}
                 className="rounded-lg bg-[#0EA5C4] px-4 py-2 text-sm font-semibold text-white"
               >
-                Schedule Session
+                {scheduling ? 'Scheduling…' : 'Schedule Session'}
               </button>
             </div>
           </div>

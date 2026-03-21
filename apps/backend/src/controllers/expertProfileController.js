@@ -45,7 +45,10 @@ async function updateProfile(req, res) {
     const current = user.expertProfile || {};
     const update = { ...current };
     if (identity !== undefined) update.identity = identity;
-    if (capability !== undefined) update.capability = capability;
+    // Shallow merge so PATCH can send partial capability without wiping other keys (e.g. omitted JSON fields).
+    if (capability !== undefined && capability !== null && typeof capability === "object") {
+      update.capability = { ...(current.capability || {}), ...capability };
+    }
     if (experience !== undefined) update.experience = experience;
     if (delivery !== undefined) update.delivery = delivery;
     if (pricing !== undefined) update.pricing = pricing;

@@ -48,7 +48,9 @@ export function DashboardLayout({
         <div className="print:hidden">
           <Header userDisplayName={userDisplayName} />
         </div>
-        <main className={`flex-1 overflow-auto py-6 px-6 min-w-0 print:overflow-visible print:px-0 print:py-0 ${mainClassName ?? ''}`}>
+        <main
+          className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-6 px-6 min-w-0 print:overflow-visible print:px-0 print:py-0 ${mainClassName ?? ''}`}
+        >
           {children}
         </main>
       </div>

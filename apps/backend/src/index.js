@@ -17,6 +17,7 @@ connectDB()
     app.use("/api/conversations", require("./routes/conversations"));
     app.use("/api/business/settings", require("./routes/businessSettings"));
     app.use("/api/business/requirements", require("./routes/requirements"));
+    app.use("/api/business/calendar", require("./routes/businessCalendar"));
     app.use("/api/expert/profile", require("./routes/expertProfile"));
     app.use("/api/expert/proposals", require("./routes/expertProposals"));
     app.use("/api/expert/calendar", require("./routes/expertCalendar"));

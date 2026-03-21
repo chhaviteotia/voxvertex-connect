@@ -21,10 +21,12 @@ import { BusinessCalendar } from './pages/business/Calendar'
 import { ExpertDashboard } from './pages/expert/Dashboard'
 import { ExpertProposals } from './pages/expert/Proposals'
 import { ExpertBrowse } from './pages/expert/Browse'
+import { ExpertOpportunityDetail } from './pages/expert/OpportunityDetail'
 import { SubmitProposal } from './pages/expert/SubmitProposal'
 import { ExpertCalendar } from './pages/expert/Calendar'
 import { ExpertMessages } from './pages/expert/Messages'
 import { ExpertProfile } from './pages/expert/Profile'
+import { ExpertAnalytics } from './pages/expert/Analytics'
 import { ExpertEarnings } from './pages/expert/Earnings'
 import { ExpertSettings } from './pages/expert/Settings'
 
@@ -71,11 +73,12 @@ function App() {
         <Route path="/expert/dashboard" element={<ExpertDashboard />} />
         <Route path="/expert/proposals" element={<ExpertProposals />} />
         <Route path="/expert/browse" element={<ExpertBrowse />} />
+        <Route path="/expert/browse/:opportunityId" element={<ExpertOpportunityDetail />} />
         <Route path="/expert/browse/:opportunityId/propose" element={<SubmitProposal />} />
         <Route path="/expert/calendar" element={<ExpertCalendar />} />
         <Route path="/expert/messages" element={<ExpertMessages />} />
         <Route path="/expert/profile" element={<ExpertProfile />} />
-        <Route path="/expert/analytics" element={<ExpertDashboard />} />
+        <Route path="/expert/analytics" element={<ExpertAnalytics />} />
         <Route path="/expert/earnings" element={<ExpertEarnings />} />
         <Route path="/expert/settings" element={<ExpertSettings />} />
       </Routes>

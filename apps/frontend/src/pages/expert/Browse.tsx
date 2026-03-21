@@ -51,6 +51,9 @@ type Opportunity = {
   budget: string
   location: string
   timeline: string
+  domainValue: string
+  budgetValue: string
+  typeValue: string
 }
 
 function timeAgo(createdAt: string): string {
@@ -121,6 +124,20 @@ function mapItemToOpportunity(item: OpportunityItem): Opportunity {
 
   const title = getTitleFromFormData(fd)
 
+  const budgetUpper = maxBudget > 0 ? maxBudget : minBudget
+  const budgetValue =
+    budgetUpper <= 0 ? 'not-specified' : budgetUpper < 100000 ? 'under-100k' : budgetUpper <= 300000 ? '100k-300k' : 'above-300k'
+  const lowerType = engagementType.toLowerCase()
+  const typeValue = lowerType.includes('workshop') || lowerType.includes('bootcamp') || lowerType.includes('masterclass') || lowerType.includes('implementation')
+    ? 'workshop'
+    : lowerType.includes('training')
+      ? 'training'
+      : (lowerType.includes('coaching') || lowerType.includes('mentorship') || lowerType.includes('advisory'))
+        ? 'coaching'
+        : (lowerType.includes('keynote') || lowerType.includes('panel') || lowerType.includes('fireside') || lowerType.includes('webinar') || lowerType.includes('speaking'))
+          ? 'speaking'
+          : 'other'
+
   return {
     id: item.id,
     title,
@@ -133,6 +150,9 @@ function mapItemToOpportunity(item: OpportunityItem): Opportunity {
     budget,
     location,
     timeline,
+    domainValue: selectedOutcome.toLowerCase(),
+    budgetValue,
+    typeValue,
   }
 }
 
@@ -149,9 +169,12 @@ export function ExpertBrowse() {
   const displayName = user?.name || (prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase() + ' Doe' : 'John Doe')
 
   const [search, setSearch] = useState('')
-  const [domain, setDomain] = useState('All Domains')
-  const [budget, setBudget] = useState('All Budgets')
-  const [type, setType] = useState('All Types')
+  const [domain, setDomain] = useState('all')
+  const [budget, setBudget] = useState('all')
+  const [type, setType] = useState('all')
+  const [domainOptions, setDomainOptions] = useState<Array<{ value: string; label: string }>>([])
+  const [budgetOptions, setBudgetOptions] = useState<Array<{ value: string; label: string }>>([])
+  const [typeOptions, setTypeOptions] = useState<Array<{ value: string; label: string }>>([])
 
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [loading, setLoading] = useState(true)
@@ -164,12 +187,36 @@ export function ExpertBrowse() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    getOpportunities({ limit: PAGE_SIZE, skip: 0 })
+    getOpportunities({ limit: PAGE_SIZE, skip: 0, search: search.trim(), domain, budget, type })
       .then((res) => {
         if (cancelled || !res.success) return
         const list = (res.data || []).map(mapItemToOpportunity)
         setOpportunities(list)
-        setHasMore(list.length >= PAGE_SIZE)
+        const fallbackDomains = Array.from(new Set(list.map((o) => o.domainValue).filter(Boolean))).map((v) => ({
+          value: v,
+          label: toTitleCase(v),
+        }))
+        setDomainOptions((res.filters?.domains?.length ?? 0) > 0 ? (res.filters?.domains ?? []) : fallbackDomains)
+        setBudgetOptions(
+          (res.filters?.budgets?.length ?? 0) > 0
+            ? (res.filters?.budgets ?? [])
+            : [
+                { value: 'under-100k', label: 'Under ₹1,00,000' },
+                { value: '100k-300k', label: '₹1,00,000 - ₹3,00,000' },
+                { value: 'above-300k', label: 'Above ₹3,00,000' },
+              ],
+        )
+        setTypeOptions(
+          (res.filters?.types?.length ?? 0) > 0
+            ? (res.filters?.types ?? [])
+            : [
+                { value: 'workshop', label: 'Workshop' },
+                { value: 'training', label: 'Training Session' },
+                { value: 'coaching', label: 'Coaching' },
+                { value: 'speaking', label: 'Speaking' },
+              ],
+        )
+        setHasMore(typeof res.total === 'number' ? res.total > list.length : list.length >= PAGE_SIZE)
         setSkip(list.length)
       })
       .catch((e) => {
@@ -179,16 +226,16 @@ export function ExpertBrowse() {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [domain, budget, type, search])
 
   const loadMore = () => {
     setLoadingMore(true)
-    getOpportunities({ limit: PAGE_SIZE, skip })
+    getOpportunities({ limit: PAGE_SIZE, skip, search: search.trim(), domain, budget, type })
       .then((res) => {
         if (!res.success) return
         const list = (res.data || []).map(mapItemToOpportunity)
         setOpportunities((prev) => [...prev, ...list])
-        setHasMore(list.length >= PAGE_SIZE)
+        setHasMore(typeof res.total === 'number' ? res.total > skip + list.length : list.length >= PAGE_SIZE)
         setSkip((s) => s + list.length)
       })
       .catch(() => {})
@@ -196,13 +243,13 @@ export function ExpertBrowse() {
   }
 
   const filtered = opportunities.filter((opp) => {
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      if (!opp.title.toLowerCase().includes(q) &&
-          !opp.company.toLowerCase().includes(q) &&
-          !opp.objective.toLowerCase().includes(q) &&
-          !opp.audience.toLowerCase().includes(q)) return false
+    const q = search.trim().toLowerCase()
+    if (q && !opp.company.toLowerCase().includes(q) && !opp.objective.toLowerCase().includes(q)) {
+      return false
     }
+    if (domain !== 'all' && opp.domainValue !== domain) return false
+    if (budget !== 'all' && opp.budgetValue !== budget) return false
+    if (type !== 'all' && opp.typeValue !== type) return false
     return true
   })
 
@@ -249,21 +296,30 @@ export function ExpertBrowse() {
               onChange={(e) => setDomain(e.target.value)}
               className="px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#008C9E]/20 focus:border-[#008C9E]"
             >
-              <option>All Domains</option>
+              <option value="all">All Domains</option>
+              {domainOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
             <select
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
               className="px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#008C9E]/20 focus:border-[#008C9E]"
             >
-              <option>All Budgets</option>
+              <option value="all">All Budgets</option>
+              {budgetOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
               className="px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#008C9E]/20 focus:border-[#008C9E]"
             >
-              <option>All Types</option>
+              <option value="all">All Types</option>
+              {typeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
         </div>
