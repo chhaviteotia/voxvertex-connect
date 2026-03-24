@@ -9,10 +9,13 @@ const {
   getStats,
 } = require("../controllers/expertCalendarController");
 const { authMiddleware } = require("../middleware/auth");
+const { requireRole } = require("../middleware/authorize");
+const { USER_TYPES } = require("../config/constants");
 
 const router = express.Router();
 
 router.use(authMiddleware);
+router.use(requireRole(USER_TYPES.EXPERT));
 
 router.get("/availability", getAvailability);
 router.post("/availability", createAvailability);

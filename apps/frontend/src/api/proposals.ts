@@ -1,6 +1,4 @@
-import { getAuthToken } from './auth'
-
-const BASE = import.meta.env.VITE_API_URL ?? ''
+import { authedRequest } from './http'
 
 /** Payload from Submit Proposal form */
 export interface ProposalFormData {
@@ -85,26 +83,11 @@ export interface UpdateProposalStatusResponse {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken()
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
-  const headers: HeadersInit = {
-    ...(options.headers ?? {}),
-  }
-  if (!isFormDataBody) {
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-  if (token) (headers as Record<string, string>).Authorization = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${path}`, {
+  return authedRequest<T>(path, {
     ...options,
-    headers,
+    includeJsonContentType: !isFormDataBody,
   })
-  const data = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok) {
-    const message = data.error ?? res.statusText
-    throw new Error(message)
-  }
-  return data as T
 }
 
 /** Expert: submit a proposal for an opportunity (requirementId = opportunityId from browse). */

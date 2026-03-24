@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { signIn, clearError } from '../store/slices/authSlice'
@@ -8,6 +8,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function SignInPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const dispatch = useAppDispatch()
   const { isLoading, error } = useAppSelector((state) => state.auth)
   const [email, setEmail] = useState('')
@@ -17,6 +18,20 @@ export function SignInPage() {
   useEffect(() => {
     dispatch(clearError())
   }, [dispatch])
+
+  const searchParams = new URLSearchParams(location.search)
+  const nextFromQuery = searchParams.get('next')
+  const nextFromState =
+    location.state && typeof location.state === 'object' && 'from' in location.state
+      ? String((location.state as { from?: unknown }).from ?? '')
+      : ''
+  const safeNextPath = (() => {
+    const candidate = (nextFromQuery || nextFromState || '').trim()
+    if (!candidate.startsWith('/')) return ''
+    if (candidate.startsWith('//')) return ''
+    if (candidate.startsWith('/signin') || candidate.startsWith('/signup')) return ''
+    return candidate
+  })()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,9 +52,11 @@ export function SignInPage() {
     const result = await dispatch(signIn({ email: trimmedEmail, password }))
     if (signIn.fulfilled.match(result)) {
       const user = result.payload.user
-      if (user.type === 'business') navigate('/business/dashboard')
-      else if (user.type === 'expert') navigate('/expert/dashboard')
-      else navigate('/')
+      if (safeNextPath) {
+        navigate(safeNextPath, { replace: true })
+      } else if (user.type === 'business') navigate('/business/dashboard', { replace: true })
+      else if (user.type === 'expert') navigate('/expert/dashboard', { replace: true })
+      else navigate('/', { replace: true })
     }
   }
 

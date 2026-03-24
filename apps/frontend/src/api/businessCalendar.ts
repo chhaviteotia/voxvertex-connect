@@ -1,20 +1,4 @@
-import { getAuthToken } from './auth'
-
-const BASE = import.meta.env.VITE_API_URL ?? ''
-
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken()
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  }
-  if (token) (headers as Record<string, string>).Authorization = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${path}`, { ...options, headers })
-  const data = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok) throw new Error(data.error ?? res.statusText)
-  return data as T
-}
+import { authedRequest } from './http'
 
 export async function scheduleSessionsForRequirement(payload: {
   requirementId: string
@@ -25,7 +9,7 @@ export async function scheduleSessionsForRequirement(payload: {
   location?: string
   note?: string
 }): Promise<{ success: boolean; data: { createdCount: number } }> {
-  return request('/api/business/calendar/sessions', {
+  return authedRequest('/api/business/calendar/sessions', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -48,5 +32,5 @@ export async function getBusinessScheduledSessions(): Promise<{
   success: boolean
   data: BusinessScheduledSession[]
 }> {
-  return request('/api/business/calendar/sessions', { method: 'GET' })
+  return authedRequest('/api/business/calendar/sessions', { method: 'GET' })
 }

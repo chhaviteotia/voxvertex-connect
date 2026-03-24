@@ -1,6 +1,4 @@
-import { getAuthToken } from './auth'
-
-const BASE = import.meta.env.VITE_API_URL ?? ''
+import { authedRequest } from './http'
 
 export interface AvailabilityWindow {
   id: string
@@ -30,21 +28,7 @@ export interface CalendarStats {
   completed: number
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken()
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  }
-  if (token) (headers as Record<string, string>).Authorization = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${path}`, { ...options, headers })
-  const data = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok) {
-    throw new Error(data.error ?? res.statusText)
-  }
-  return data as T
-}
+const request = authedRequest
 
 export async function getAvailability(): Promise<{
   success: boolean

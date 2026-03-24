@@ -14,6 +14,13 @@ const env = {
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
+  CORS_ORIGIN: process.env.CORS_ORIGIN || "",
+  AUTH_RATE_LIMIT_WINDOW_MS: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || "900000", 10),
+  AUTH_RATE_LIMIT_MAX: parseInt(process.env.AUTH_RATE_LIMIT_MAX || "10", 10),
 };
+
+if (env.NODE_ENV === "production" && (!env.JWT_SECRET || env.JWT_SECRET === "change-me-in-production")) {
+  throw new Error("JWT_SECRET must be set to a strong value in production.");
+}
 
 module.exports = { env };

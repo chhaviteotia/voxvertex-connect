@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const { env } = require("./config/env");
 const { connectDB } = require("./config/db");
 
@@ -8,7 +9,25 @@ const port = env.PORT;
 
 connectDB()
   .then(() => {
-    app.use(cors());
+    app.disable("x-powered-by");
+    const allowedOrigins = env.CORS_ORIGIN
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+    app.use(
+      cors({
+        origin:
+          allowedOrigins.length === 0
+            ? true
+            : (origin, callback) => {
+                if (!origin || allowedOrigins.includes(origin)) {
+                  return callback(null, true);
+                }
+                return callback(new Error("Not allowed by CORS"));
+              },
+      })
+    );
+    app.use(helmet());
     app.use(express.json());
 
     app.get("/", (req, res) => res.send("VoxVertex Connect API"));

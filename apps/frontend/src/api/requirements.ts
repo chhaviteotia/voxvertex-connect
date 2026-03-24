@@ -1,6 +1,4 @@
-import { getAuthToken } from './auth'
-
-const BASE = import.meta.env.VITE_API_URL ?? ''
+import { authedRequest } from './http'
 
 export interface CreateRequirementPayload {
   status?: 'draft' | 'published'
@@ -28,28 +26,8 @@ export interface ListRequirementsResponse {
   error?: string
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken()
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  }
-  if (token) headers.Authorization = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers,
-  })
-  const data = await res.json().catch(() => ({})) as { error?: string }
-  if (!res.ok) {
-    const message = data.error ?? res.statusText
-    throw new Error(message)
-  }
-  return data as T
-}
-
 export async function createRequirement(payload: CreateRequirementPayload): Promise<CreateRequirementResponse> {
-  return request<CreateRequirementResponse>('/api/business/requirements', {
+  return authedRequest<CreateRequirementResponse>('/api/business/requirements', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -61,11 +39,11 @@ export async function listRequirements(params?: { status?: string; limit?: numbe
   if (params?.limit != null) search.set('limit', String(params.limit))
   if (params?.skip != null) search.set('skip', String(params.skip))
   const q = search.toString()
-  return request<ListRequirementsResponse>(`/api/business/requirements${q ? `?${q}` : ''}`)
+  return authedRequest<ListRequirementsResponse>(`/api/business/requirements${q ? `?${q}` : ''}`)
 }
 
 export async function getRequirement(id: string): Promise<{ success: boolean; requirement: RequirementResponse }> {
-  return request<{ success: boolean; requirement: RequirementResponse }>(`/api/business/requirements/${id}`)
+  return authedRequest<{ success: boolean; requirement: RequirementResponse }>(`/api/business/requirements/${id}`)
 }
 
 export interface UpdateRequirementPayload {
@@ -74,7 +52,7 @@ export interface UpdateRequirementPayload {
 }
 
 export async function updateRequirement(id: string, payload: UpdateRequirementPayload): Promise<CreateRequirementResponse> {
-  return request<CreateRequirementResponse>(`/api/business/requirements/${id}`, {
+  return authedRequest<CreateRequirementResponse>(`/api/business/requirements/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })

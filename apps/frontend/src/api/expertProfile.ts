@@ -1,6 +1,4 @@
-import { getAuthToken } from './auth'
-
-const BASE = import.meta.env.VITE_API_URL ?? ''
+import { authedRequest } from './http'
 
 export interface ExpertProfileIdentity {
   bio?: string
@@ -51,28 +49,12 @@ export interface UpdateExpertProfileResponse {
   error?: string
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken()
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  }
-  if (token) (headers as Record<string, string>).Authorization = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${path}`, { ...options, headers })
-  const data = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok) {
-    throw new Error(data.error ?? res.statusText)
-  }
-  return data as T
-}
-
 export async function getExpertProfile() {
-  return request<GetExpertProfileResponse>('/api/expert/profile', { method: 'GET' })
+  return authedRequest<GetExpertProfileResponse>('/api/expert/profile', { method: 'GET' })
 }
 
 export async function updateExpertProfile(payload: Partial<ExpertProfileData>) {
-  return request<UpdateExpertProfileResponse>('/api/expert/profile', {
+  return authedRequest<UpdateExpertProfileResponse>('/api/expert/profile', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })

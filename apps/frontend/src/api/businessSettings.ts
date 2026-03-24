@@ -1,6 +1,4 @@
-import { getAuthToken } from './auth'
-
-const BASE = import.meta.env.VITE_API_URL ?? ''
+import { authedRequest } from './http'
 
 interface OrganizationSettings {
   companyName: string
@@ -37,77 +35,48 @@ export interface BusinessSettingsResponse {
   error?: string
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken()
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  }
-  if (token) headers.Authorization = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers,
-  })
-  const data = await res.json().catch(() => ({})) as { error?: string }
-  if (!res.ok) {
-    const message = data.error ?? res.statusText
-    throw new Error(message)
-  }
-  return data as T
-}
-
 export async function fetchBusinessSettings() {
-  return request<BusinessSettingsResponse>('/api/business/settings', {
+  return authedRequest<BusinessSettingsResponse>('/api/business/settings', {
     method: 'GET',
   })
 }
 
 export async function updateOrganizationSettings(payload: Partial<OrganizationSettings>) {
-  return request<{ success: boolean; data: OrganizationSettings }>('/api/business/settings/organization', {
+  return authedRequest<{ success: boolean; data: OrganizationSettings }>('/api/business/settings/organization', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
 }
 
 export async function updateProfileSettings(payload: Partial<ProfileSettings>) {
-  return request<{ success: boolean; data: ProfileSettings }>('/api/business/settings/profile', {
+  return authedRequest<{ success: boolean; data: ProfileSettings }>('/api/business/settings/profile', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
 }
 
 export async function updateNotificationSettings(payload: Partial<NotificationSettings>) {
-  return request<{ success: boolean; data: NotificationSettings }>('/api/business/settings/notifications', {
+  return authedRequest<{ success: boolean; data: NotificationSettings }>('/api/business/settings/notifications', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
 }
 
 export async function changeBusinessPassword(currentPassword: string, newPassword: string) {
-  return request<{ success: boolean }>('/api/business/settings/change-password', {
+  return authedRequest<{ success: boolean }>('/api/business/settings/change-password', {
     method: 'POST',
     body: JSON.stringify({ currentPassword, newPassword }),
   })
 }
 
 export async function uploadBusinessAvatar(file: File): Promise<{ success: boolean; avatarUrl: string }> {
-  const token = getAuthToken()
-  const headers: HeadersInit = {}
-  if (token) headers.Authorization = `Bearer ${token}`
-
   const formData = new FormData()
   formData.append('photo', file)
 
-  const res = await fetch(`${BASE}/api/business/settings/avatar`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  })
-  const data = await res.json().catch(() => ({})) as { success?: boolean; avatarUrl?: string; error?: string }
-  if (!res.ok) {
-    throw new Error(data.error ?? res.statusText)
-  }
+  const data = await authedRequest<{ success?: boolean; avatarUrl?: string; error?: string }>(
+    '/api/business/settings/avatar',
+    { method: 'POST', body: formData, includeJsonContentType: false }
+  )
   if (!data.success || !data.avatarUrl) {
     throw new Error(data.error ?? 'Upload failed')
   }

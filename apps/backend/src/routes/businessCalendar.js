@@ -1,5 +1,7 @@
 const express = require("express");
 const { authMiddleware } = require("../middleware/auth");
+const { requireRole } = require("../middleware/authorize");
+const { USER_TYPES } = require("../config/constants");
 const {
   scheduleRequirementSession,
   listScheduledSessions,
@@ -8,6 +10,7 @@ const {
 const router = express.Router();
 
 router.use(authMiddleware);
+router.use(requireRole(USER_TYPES.BUSINESS));
 router.get("/sessions", listScheduledSessions);
 router.post("/sessions", scheduleRequirementSession);
 
