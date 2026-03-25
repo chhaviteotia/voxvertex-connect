@@ -31,6 +31,8 @@ connectDB()
     app.use(express.json());
 
     app.get("/", (req, res) => res.send("VoxVertex Connect API"));
+    app.get("/health", (req, res) => res.status(200).json({ success: true, status: "ok" }));
+    app.get("/api/health", (req, res) => res.status(200).json({ success: true, status: "ok" }));
 
     app.use("/api/auth", require("./routes/auth"));
     app.use("/api/conversations", require("./routes/conversations"));
