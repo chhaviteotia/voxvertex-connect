@@ -44,9 +44,9 @@ connectDB()
     app.use("/api/expert/calendar", require("./routes/expertCalendar"));
     app.use("/api/expert/opportunities", require("./routes/expertOpportunities"));
 
-    app.listen(port, () => {
-      console.log(`Server running at http://localhost:${port}`);
-    });
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server running at http://0.0.0.0:${port}`);
+});
   })
   .catch((err) => {
     console.error(err);
