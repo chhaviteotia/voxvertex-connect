@@ -30,7 +30,6 @@ export function Sidebar({
   bottomItems = [],
   userDisplayName,
   userSubLabel,
-  accentColor = 'blue',
   footer,
   className = '',
 }: SidebarProps) {

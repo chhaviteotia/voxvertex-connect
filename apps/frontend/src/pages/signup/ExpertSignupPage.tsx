@@ -31,7 +31,6 @@ const FEE_MAX = 500_000
 const FEE_STEP = 5000
 
 const STEP3_TEAL = '#2391B1'
-const STEP3_LIGHT_TEAL = '#D2F2FA'
 const STEP3_SLIDER_FILL = '#313238'
 
 const SERVICE_OFFERINGS = [
@@ -341,7 +340,7 @@ export function ExpertSignupPage() {
             </div>
           )}
 
-          {step === 3 && status !== 'success' && (
+          {step === 3 && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900">Quick snapshot</h2>
               <p className="text-sm text-gray-500 mt-0.5 mb-6">Help us match you better</p>
