@@ -16,6 +16,8 @@ interface DashboardLayoutProps {
   accentColor?: 'blue' | 'green'
   sidebarFooter?: React.ReactNode
   sidebarClassName?: string
+  /** Extra class for main content area (e.g. expert: "pl-10" for more left padding) */
+  mainClassName?: string
 }
 
 export function DashboardLayout({
@@ -23,23 +25,32 @@ export function DashboardLayout({
   sidebarItems,
   sidebarBottomItems,
   userDisplayName,
+  userSubLabel,
   accentColor = 'blue',
   sidebarFooter,
   sidebarClassName,
+  mainClassName,
 }: DashboardLayoutProps) {
   return (
-    <div className="h-screen flex overflow-hidden bg-gray-50">
-      <Sidebar
-        items={sidebarItems}
-        bottomItems={sidebarBottomItems}
-        userDisplayName={userDisplayName}
-        accentColor={accentColor}
-        footer={sidebarFooter}
-        className={sidebarClassName}
-      />
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <Header userDisplayName={userDisplayName} />
-        <main className="flex-1 overflow-auto p-6 min-w-0">
+    <div className="h-screen flex overflow-hidden bg-gray-50 print:block print:h-auto">
+      <div className="print:hidden">
+        <Sidebar
+          items={sidebarItems}
+          bottomItems={sidebarBottomItems}
+          userDisplayName={userDisplayName}
+          userSubLabel={userSubLabel}
+          accentColor={accentColor}
+          footer={sidebarFooter}
+          className={sidebarClassName}
+        />
+      </div>
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden print:block print:min-h-0 print:overflow-visible">
+        <div className="print:hidden">
+          <Header userDisplayName={userDisplayName} />
+        </div>
+        <main
+          className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-6 px-6 min-w-0 print:overflow-visible print:px-0 print:py-0 ${mainClassName ?? ''}`}
+        >
           {children}
         </main>
       </div>

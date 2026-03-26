@@ -16,6 +16,8 @@ interface SidebarProps {
   bottomItems?: SidebarItem[]
   /** User display name shown at bottom (e.g. "John Doe", "Acme Corp") */
   userDisplayName: string
+  /** Optional line under name (e.g. "Expert") */
+  userSubLabel?: string
   accentColor?: 'blue' | 'green'
   footer?: React.ReactNode
   className?: string
@@ -27,7 +29,7 @@ export function Sidebar({
   items,
   bottomItems = [],
   userDisplayName,
-  accentColor = 'blue',
+  userSubLabel,
   footer,
   className = '',
 }: SidebarProps) {
@@ -80,7 +82,10 @@ export function Sidebar({
           <span className="w-9 h-9 rounded-full bg-[#008C9E] text-white flex items-center justify-center text-sm font-semibold shrink-0">
             {initials}
           </span>
-          <span className="text-gray-300 text-sm font-medium truncate">{userDisplayName}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-gray-300 text-sm font-medium truncate">{userDisplayName}</p>
+            {userSubLabel && <p className="text-gray-400 text-xs truncate">{userSubLabel}</p>}
+          </div>
         </div>
       </div>
       {footer != null && (

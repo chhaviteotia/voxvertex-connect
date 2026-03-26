@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarItems, businessSidebarBottomItems } from '../../config/businessNav'
 import { CustomSelect } from '../../components/CustomSelect'
@@ -9,6 +9,14 @@ import {
   IconCreditCard,
   IconUsers,
 } from '../../components/layout/DashboardIcons'
+import { useAppSelector } from '../../store/hooks'
+import {
+  fetchBusinessSettings,
+  updateOrganizationSettings,
+  updateProfileSettings,
+  changeBusinessPassword,
+  uploadBusinessAvatar,
+} from '../../api/businessSettings'
 
 const TEAL = '#2293B4'
 
@@ -28,17 +36,22 @@ const COMPANY_SIZE_OPTIONS = ['1-10 employees', '11-50 employees', '51-200 emplo
 export function Settings() {
   const [activeTab, setActiveTab] = useState<TabId>('organization')
 
-  const [companyName, setCompanyName] = useState('Acme Corporation')
-  const [industry, setIndustry] = useState('Technology')
-  const [companySize, setCompanySize] = useState('51-200 employees')
-  const [website, setWebsite] = useState('https://acme.com')
-  const [address, setAddress] = useState('123 Business Street, Mumbai')
+  const authUser = useAppSelector((state) => state.auth.user)
 
-  const [firstName, setFirstName] = useState('John')
-  const [lastName, setLastName] = useState('Doe')
-  const [email, setEmail] = useState('john.doe@acme.com')
-  const [phone, setPhone] = useState('+91 98765 43210')
-  const [jobTitle, setJobTitle] = useState('VP of Learning & Development')
+  const [companyName, setCompanyName] = useState('')
+  const [industry, setIndustry] = useState('')
+  const [companySize, setCompanySize] = useState('')
+  const [website, setWebsite] = useState('')
+  const [address, setAddress] = useState('')
+
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [jobTitle, setJobTitle] = useState('')
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -49,6 +62,143 @@ export function Settings() {
   const [notifMessages, setNotifMessages] = useState(true)
   const [notifWeeklyDigest, setNotifWeeklyDigest] = useState(false)
 
+  const [isLoading, setIsLoading] = useState(true)
+  const [savingOrganization, setSavingOrganization] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingPassword, setSavingPassword] = useState(false)
+  const [saveMessage, setSaveMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      try {
+        const res = await fetchBusinessSettings()
+        if (!mounted || !res.success) return
+        const { organization, profile } = res.data
+        setCompanyName(organization.companyName ?? '')
+        setIndustry(organization.industry ?? '')
+        setCompanySize(organization.companySize ?? '')
+        setWebsite(organization.website ?? '')
+        setAddress(organization.address ?? '')
+
+        let first = (profile.firstName ?? '').trim()
+        let last = (profile.lastName ?? '').trim()
+        if (!first && !last && (profile.fullName ?? '').trim()) {
+          const parts = (profile.fullName as string).trim().split(/\s+/).filter(Boolean)
+          first = parts[0] ?? ''
+          last = parts.slice(1).join(' ') ?? ''
+        }
+        setFirstName(first)
+        setLastName(last)
+        setAvatarUrl(profile.avatarUrl ?? '')
+        setEmail(profile.email ?? '')
+        setPhone(profile.phone ?? '')
+        setJobTitle(profile.jobTitle ?? '')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to load settings.'
+        setErrorMessage(msg)
+      } finally {
+        if (mounted) setIsLoading(false)
+      }
+    }
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const handleSaveOrganization = async () => {
+    try {
+      setSaveMessage('')
+      setErrorMessage('')
+      setSavingOrganization(true)
+      await updateOrganizationSettings({ companyName, industry, companySize, website, address })
+      setSaveMessage('Organization settings saved.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save organization settings.'
+      setErrorMessage(msg)
+    } finally {
+      setSavingOrganization(false)
+    }
+  }
+
+  const handleSaveProfile = async () => {
+    try {
+      setSaveMessage('')
+      setErrorMessage('')
+      setSavingProfile(true)
+      await updateProfileSettings({ firstName, lastName, email, phone, jobTitle })
+      setSaveMessage('Profile updated.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update profile.'
+      setErrorMessage(msg)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    try {
+      setSaveMessage('')
+      setErrorMessage('')
+      if (!newPassword || newPassword !== confirmPassword) {
+        setErrorMessage('New password and confirmation must match.')
+        return
+      }
+      setSavingPassword(true)
+      await changeBusinessPassword(currentPassword, newPassword)
+      setSaveMessage('Password updated.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to change password.'
+      setErrorMessage(msg)
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
+  const handleChangePhotoClick = () => {
+    photoInputRef.current?.click()
+  }
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      setErrorMessage('Only JPG, PNG, GIF, or WebP allowed.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorMessage('Image must be 2MB or smaller.')
+      return
+    }
+    try {
+      setSaveMessage('')
+      setErrorMessage('')
+      setUploadingPhoto(true)
+      const { avatarUrl: url } = await uploadBusinessAvatar(file)
+      setAvatarUrl(url)
+      setSaveMessage('Photo updated.')
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to upload photo.')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
+  const profileInitials = [firstName, lastName].map((s) => (s || '').trim().charAt(0)).filter(Boolean).join('').toUpperCase() || '?'
+
+  const handleSaveNotifications = () => {
+    setSaveMessage('')
+    setErrorMessage('')
+    setSaveMessage('Notification preferences are not connected to the server yet.')
+  }
+
   const inputClass =
     'w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-[#F7F9FC] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:border-transparent'
   const labelClass = 'block text-sm font-medium text-gray-700 mb-1.5'
@@ -58,7 +208,7 @@ export function Settings() {
       sidebarItems={businessSidebarItems}
       sidebarBottomItems={businessSidebarBottomItems}
       userTypeLabel="Business"
-      userDisplayName="Acme Corp"
+      userDisplayName={companyName || authUser?.email || 'Business Account'}
       userSubLabel="Business Account"
       sidebarClassName="bg-gray-50"
     >
@@ -88,7 +238,24 @@ export function Settings() {
           ))}
         </div>
 
-        {activeTab === 'organization' && (
+        {isLoading && (
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-sm text-gray-500">Loading settings...</p>
+          </div>
+        )}
+
+        {!isLoading && errorMessage && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {errorMessage}
+          </div>
+        )}
+        {!isLoading && !errorMessage && saveMessage && (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {saveMessage}
+          </div>
+        )}
+
+        {!isLoading && activeTab === 'organization' && (
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 mb-5">Organization Information</h2>
             <div className="space-y-4">
@@ -145,31 +312,47 @@ export function Settings() {
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
-                className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
+                onClick={handleSaveOrganization}
+                disabled={savingOrganization}
+                className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
                 style={{ backgroundColor: TEAL }}
               >
-                Save Changes
+                {savingOrganization ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
         )}
 
-        {activeTab === 'profile' && (
+        {!isLoading && activeTab === 'profile' && (
           <div className="space-y-6">
             <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-5">Personal Information</h2>
               <div className="flex flex-wrap items-start gap-4 mb-6">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-lg font-semibold border-2 border-gray-300 shrink-0" style={{ backgroundColor: '#1E3A5F' }}>
-                  JD
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  aria-hidden
+                  onChange={handlePhotoChange}
+                />
+                <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-lg font-semibold border-2 border-gray-300 shrink-0 overflow-hidden bg-[#1E3A5F]">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    profileInitials
+                  )}
                 </div>
                 <div>
                   <button
                     type="button"
-                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                    onClick={handleChangePhotoClick}
+                    disabled={uploadingPhoto}
+                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-70"
                   >
-                    Change Photo
+                    {uploadingPhoto ? 'Uploading…' : 'Change Photo'}
                   </button>
-                  <p className="text-xs text-gray-500 mt-1.5">JPG, PNG, Max 2MB.</p>
+                  <p className="text-xs text-gray-500 mt-1.5">JPG, PNG, GIF, WebP. Max 2MB.</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -224,10 +407,12 @@ export function Settings() {
               <div className="mt-6 flex justify-end">
                 <button
                   type="button"
-                  className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
                   style={{ backgroundColor: TEAL }}
                 >
-                  Save Changes
+                  {savingProfile ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -269,17 +454,19 @@ export function Settings() {
               <div className="mt-6 flex justify-end">
                 <button
                   type="button"
-                  className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
+                  onClick={handleChangePassword}
+                  disabled={savingPassword}
+                  className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
                   style={{ backgroundColor: TEAL }}
                 >
-                  Update Password
+                  {savingPassword ? 'Updating…' : 'Update Password'}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === 'notifications' && (
+        {!isLoading && activeTab === 'notifications' && (
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 mb-5">Email Notifications</h2>
             <div className="divide-y divide-gray-200">
@@ -339,6 +526,7 @@ export function Settings() {
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
+                onClick={handleSaveNotifications}
                 className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
                 style={{ backgroundColor: TEAL }}
               >

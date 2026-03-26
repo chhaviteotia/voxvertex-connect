@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Logo } from '../../components/Logo'
 import { CustomSelect } from '../../components/CustomSelect'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { signUp } from '../../store/slices/authSlice'
 
 interface ExpertSignupState {
   name?: string
@@ -29,7 +31,6 @@ const FEE_MAX = 500_000
 const FEE_STEP = 5000
 
 const STEP3_TEAL = '#2391B1'
-const STEP3_LIGHT_TEAL = '#D2F2FA'
 const STEP3_SLIDER_FILL = '#313238'
 
 const SERVICE_OFFERINGS = [
@@ -91,10 +92,14 @@ const labelClass = 'block text-sm font-medium text-gray-800 mb-1.5'
 
 export function ExpertSignupPage() {
   const location = useLocation()
+  const dispatch = useAppDispatch()
+  const { isLoading: authLoading, error: authError } = useAppSelector((state) => state.auth)
   const signupState = (location.state as ExpertSignupState | null) ?? {}
   const [step, setStep] = useState(1)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const displayError = errorMessage || authError || ''
+  const loading = status === 'loading' || authLoading
   const [form, setForm] = useState({
     fullName: signupState.name ?? '',
     email: signupState.email ?? '',
@@ -121,15 +126,38 @@ export function ExpertSignupPage() {
     return !!(t(form.fullName) && t(form.email) && t(form.primaryDomain) && t(form.experienceRange))
   }
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     setErrorMessage('')
     if (step === 1 && !isStep1Valid()) {
       setErrorMessage('Please fill in all fields.')
       setStatus('error')
       return
     }
-    if (step < STEPS) setStep(step + 1)
-    else setStatus('success')
+    if (step < STEPS) {
+      setStep(step + 1)
+      return
+    }
+    const password = signupState.password
+    if (!password || !form.email?.trim()) {
+      setErrorMessage('Missing email or password. Please start signup from the main signup page.')
+      setStatus('error')
+      return
+    }
+    setStatus('loading')
+    const result = await dispatch(signUp({
+      type: 'expert',
+      email: form.email.trim(),
+      password,
+      name: form.fullName?.trim() ?? '',
+      expertise: form.primaryDomain ?? '',
+      experienceRange: form.experienceRange ?? '',
+    }))
+    if (signUp.fulfilled.match(result)) {
+      setStatus('success')
+    } else {
+      setErrorMessage(result.payload ?? 'Signup failed.')
+      setStatus('error')
+    }
   }
 
   const handleBack = () => {
@@ -198,8 +226,8 @@ export function ExpertSignupPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900">Let&apos;s start with the basics</h2>
               <p className="text-sm text-gray-500 mt-0.5 mb-6">Tell us about yourself</p>
-              {status === 'error' && errorMessage && (
-                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{errorMessage}</div>
+              {status === 'error' && displayError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{displayError}</div>
               )}
               <div className="space-y-4">
                 <div>
@@ -312,10 +340,13 @@ export function ExpertSignupPage() {
             </div>
           )}
 
-          {step === 3 && status !== 'success' && (
+          {step === 3 && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900">Quick snapshot</h2>
               <p className="text-sm text-gray-500 mt-0.5 mb-6">Help us match you better</p>
+              {status === 'error' && displayError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{displayError}</div>
+              )}
 
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-800 mb-3">Target Audience (select multiple)</h3>
@@ -409,9 +440,10 @@ export function ExpertSignupPage() {
                 <button
                   type="button"
                   onClick={handleContinue}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#008C9E] text-white text-sm font-medium hover:opacity-90"
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#008C9E] text-white text-sm font-medium hover:opacity-90 disabled:opacity-70"
                 >
-                  Finish Setup <span aria-hidden>→</span>
+                  {loading ? 'Creating account…' : 'Finish Setup'} <span aria-hidden>→</span>
                 </button>
               </div>
             </div>

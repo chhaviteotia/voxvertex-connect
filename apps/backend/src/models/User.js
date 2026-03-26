@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
-    // Business-specific
+    password: { type: String, required: true, select: false },
     companyName: { type: String, trim: true, default: "" },
     contactName: { type: String, trim: true, default: "" },
     organizationType: { type: String, trim: true, default: "" },
@@ -39,18 +39,29 @@ const userSchema = new mongoose.Schema(
     riskSensitivity: { type: String, trim: true, default: "Medium" },
     experimentalOpenness: { type: Number, default: 3 },
     outcomeMeasurementPreference: { type: String, trim: true, default: "" },
-    // Expert-specific
     name: { type: String, trim: true, default: "" },
     expertise: { type: String, trim: true, default: "" },
+    experienceRange: { type: String, trim: true, default: "" },
     bio: { type: String, trim: true, default: "" },
-    // Shared
     phone: { type: String, trim: true, default: "" },
     message: { type: String, trim: true, default: "" },
+    preferredRegions: [{ type: String, trim: true }],
+    website: { type: String, trim: true, default: "" },
+    address: { type: String, trim: true, default: "" },
+    firstName: { type: String, trim: true, default: "" },
+    lastName: { type: String, trim: true, default: "" },
+    jobTitle: { type: String, trim: true, default: "" },
+    notifExpertMatches: { type: Boolean, default: true },
+    notifProposals: { type: Boolean, default: true },
+    notifMessages: { type: Boolean, default: true },
+    notifWeeklyDigest: { type: Boolean, default: false },
+    avatarUrl: { type: String, trim: true, default: "" },
+    /** Expert profile (Identity, Capability, Experience, Delivery, Pricing, Availability). Only for type=expert. */
+    expertProfile: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );
 
-// One registration per email per type (same email can sign up as business and expert)
 userSchema.index({ email: 1, type: 1 }, { unique: true });
 
 module.exports = mongoose.model("User", userSchema);

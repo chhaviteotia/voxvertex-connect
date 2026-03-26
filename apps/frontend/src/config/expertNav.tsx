@@ -1,17 +1,17 @@
 import type { SidebarItem } from '../components/layout/Sidebar'
-import { IconHome, IconDocument, IconSearch, IconUser, IconDollar, IconSettings } from '../components/layout/DashboardIcons'
+import { IconDashboard, IconTarget, IconDocument, IconMessage, IconCalendar, IconUser, IconChart } from '../components/layout/DashboardIcons'
 
-/** Expert dashboard sidebar config. Pass to shared DashboardLayout / Sidebar with accentColor="green". */
+/** Expert dashboard sidebar config: Dashboard, Opportunities, Proposals, Messages, Calendar, Profile, Analytics. */
 const base = '/expert'
 
 export const expertSidebarItems: SidebarItem[] = [
-  { to: `${base}/dashboard`, label: 'Dashboard', icon: <IconHome /> },
-  { to: `${base}/proposals`, label: 'My Proposals', icon: <IconDocument /> },
-  { to: `${base}/browse`, label: 'Browse Requirements', icon: <IconSearch /> },
+  { to: `${base}/dashboard`, label: 'Dashboard', icon: <IconDashboard /> },
+  { to: `${base}/browse`, label: 'Opportunities', icon: <IconTarget /> },
+  { to: `${base}/proposals`, label: 'Proposals', icon: <IconDocument /> },
+  { to: `${base}/messages`, label: 'Messages', icon: <IconMessage /> },
+  { to: `${base}/calendar`, label: 'Calendar', icon: <IconCalendar /> },
   { to: `${base}/profile`, label: 'Profile', icon: <IconUser /> },
-  { to: `${base}/earnings`, label: 'Earnings', icon: <IconDollar /> },
+  { to: `${base}/analytics`, label: 'Analytics', icon: <IconChart /> },
 ]
 
-export const expertSidebarBottomItems: SidebarItem[] = [
-  { to: `${base}/settings`, label: 'Settings', icon: <IconSettings /> },
-]
+export const expertSidebarBottomItems: SidebarItem[] = []

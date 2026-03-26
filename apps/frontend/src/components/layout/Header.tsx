@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { IconBell } from './DashboardIcons'
+import { useAppDispatch } from '../../store/hooks'
+import { logout } from '../../store/slices/authSlice'
 
 /**
  * Dashboard header: notification bell with dot, user avatar (initials) with dropdown.
@@ -24,12 +26,20 @@ export function Header({
   userDisplayName,
   showNotificationDot = true,
 }: HeaderProps) {
+  const dispatch = useAppDispatch()
+  const navigate = useNavigate()
   const initials = getInitials(userDisplayName)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const location = useLocation()
 
   const dashboardHref = location.pathname.startsWith('/expert') ? '/expert/dashboard' : '/business/dashboard'
+
+  const handleLogout = () => {
+    dispatch(logout())
+    setOpen(false)
+    navigate('/', { replace: true })
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -79,11 +89,20 @@ export function Header({
               >
                 Dashboard
               </Link>
+              {location.pathname.startsWith('/expert') && (
+                <Link
+                  to="/expert/settings"
+                  onClick={() => setOpen(false)}
+                  className="block px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 no-underline"
+                >
+                  Settings
+                </Link>
+              )}
               <div className="my-1 border-t border-gray-200" />
-              <Link
-                to="/signin"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 no-underline"
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 bg-transparent border-0 text-left cursor-pointer"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-500">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -91,7 +110,7 @@ export function Header({
                   <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
                 Log Out
-              </Link>
+              </button>
             </div>
           )}
         </div>

@@ -4,24 +4,51 @@ import { Logo } from '../../components/Logo'
 
 type Role = 'business' | 'expert'
 
+const MIN_PASSWORD_LENGTH = 8
+const MAX_PASSWORD_LENGTH = 128
+const MAX_EMAIL_LENGTH = 254
+const MAX_FULL_NAME_LENGTH = 200
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const SPECIAL_CHAR_REGEX = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/
+
+function validateSignupStep1(fullName: string, email: string, password: string) {
+  const trimmedName = fullName.trim()
+  const trimmedEmail = email.trim()
+  const fullNameError = !trimmedName ? 'Full name is required.' : trimmedName.length > MAX_FULL_NAME_LENGTH ? `Full name must be at most ${MAX_FULL_NAME_LENGTH} characters.` : ''
+  let emailError = ''
+  if (!trimmedEmail) emailError = 'Email is required.'
+  else if (trimmedEmail.length > MAX_EMAIL_LENGTH) emailError = 'Email is too long.'
+  else if (!EMAIL_REGEX.test(trimmedEmail)) emailError = 'Please enter a valid email address.'
+  let passwordError = ''
+  if (!password) passwordError = 'Password is required.'
+  else {
+    if (password.length < MIN_PASSWORD_LENGTH) passwordError = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`
+    else if (password.length > MAX_PASSWORD_LENGTH) passwordError = `Password must be at most ${MAX_PASSWORD_LENGTH} characters.`
+    else if (!SPECIAL_CHAR_REGEX.test(password)) passwordError = 'Password must include at least one special character (e.g. ! @ # $ %).'
+  }
+  return { fullNameError, emailError, passwordError }
+}
+
 export function SignupPage() {
   const [role, setRole] = useState<Role>('business')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [fullNameError, setFullNameError] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const navigate = useNavigate()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     const trimmedName = fullName.trim()
     const trimmedEmail = email.trim()
-    const trimmedPassword = password.trim()
-    if (!trimmedName || !trimmedEmail || !trimmedPassword) {
-      setError('Please fill in Full Name, Email, and Password.')
-      return
-    }
+    const trimmedPassword = password
+    const errs = validateSignupStep1(trimmedName, trimmedEmail, trimmedPassword)
+    setFullNameError(errs.fullNameError)
+    setEmailError(errs.emailError)
+    setPasswordError(errs.passwordError)
+    if (errs.fullNameError || errs.emailError || errs.passwordError) return
     if (role === 'business') {
       navigate('/signup/business', {
         state: { contactName: trimmedName, email: trimmedEmail, password: trimmedPassword },
@@ -43,11 +70,6 @@ export function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {error && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">
-              {error}
-            </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-2">I am a</label>
             <div className="space-y-2">
@@ -83,9 +105,13 @@ export function SignupPage() {
               type="text"
               placeholder="John Doe"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#20B2AA] focus:border-transparent"
+              maxLength={MAX_FULL_NAME_LENGTH}
+              onChange={(e) => { setFullName(e.target.value); setFullNameError('') }}
+              className={`w-full px-4 py-2.5 border rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#20B2AA] focus:border-transparent ${fullNameError ? 'border-red-400 bg-red-50/50' : 'border-gray-200'}`}
+              aria-invalid={!!fullNameError}
+              aria-describedby={fullNameError ? 'fullName-error' : undefined}
             />
+            {fullNameError && <p id="fullName-error" className="mt-1 text-sm text-red-600">{fullNameError}</p>}
           </div>
 
           <div>
@@ -95,9 +121,13 @@ export function SignupPage() {
               type="email"
               placeholder="you@company.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#20B2AA] focus:border-transparent"
+              maxLength={MAX_EMAIL_LENGTH}
+              onChange={(e) => { setEmail(e.target.value); setEmailError('') }}
+              className={`w-full px-4 py-2.5 border rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#20B2AA] focus:border-transparent ${emailError ? 'border-red-400 bg-red-50/50' : 'border-gray-200'}`}
+              aria-invalid={!!emailError}
+              aria-describedby={emailError ? 'email-error' : undefined}
             />
+            {emailError && <p id="email-error" className="mt-1 text-sm text-red-600">{emailError}</p>}
           </div>
 
           <div>
@@ -107,9 +137,14 @@ export function SignupPage() {
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#20B2AA] focus:border-transparent"
+              maxLength={MAX_PASSWORD_LENGTH}
+              onChange={(e) => { setPassword(e.target.value); setPasswordError('') }}
+              className={`w-full px-4 py-2.5 border rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#20B2AA] focus:border-transparent ${passwordError ? 'border-red-400 bg-red-50/50' : 'border-gray-200'}`}
+              aria-invalid={!!passwordError}
+              aria-describedby={passwordError ? 'password-error' : 'password-hint'}
             />
+            <p id="password-hint" className="mt-1 text-xs text-gray-500">8–128 characters, including one special character (e.g. ! @ # $ %)</p>
+            {passwordError && <p id="password-error" className="mt-1 text-sm text-red-600">{passwordError}</p>}
           </div>
 
           <button

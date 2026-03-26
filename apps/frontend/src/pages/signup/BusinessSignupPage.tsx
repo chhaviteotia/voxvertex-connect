@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Logo } from '../../components/Logo'
 import { CustomSelect } from '../../components/CustomSelect'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { signUp } from '../../store/slices/authSlice'
 
 interface SignupState {
   contactName?: string
@@ -28,11 +30,15 @@ const labelClass = 'block text-sm font-medium text-gray-800 mb-1.5'
 
 export function BusinessSignupPage() {
   const location = useLocation()
+  const dispatch = useAppDispatch()
+  const { isLoading: authLoading, error: authError } = useAppSelector((state) => state.auth)
   const signupState = (location.state as SignupState | null) ?? {}
 
   const [step, setStep] = useState(1)
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const loading = status === 'loading' || authLoading
+  const displayError = errorMessage || authError || ''
 
   const [form, setForm] = useState({
     organizationName: '',
@@ -100,7 +106,7 @@ export function BusinessSignupPage() {
   }
   const isCurrentStepValid = step === 1 ? isStep1Valid() : step === 2 ? isStep2Valid() : isStep3Valid()
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!isCurrentStepValid) {
       setErrorMessage('Please fill in all required fields before continuing.')
       setStatus('error')
@@ -108,10 +114,55 @@ export function BusinessSignupPage() {
     }
     setErrorMessage('')
     setStatus('idle')
-    if (step < 3) setStep(step + 1)
-    else {
+    if (step < 3) {
+      setStep(step + 1)
+      return
+    }
+    const password = signupState.password
+    if (!password || !form.email?.trim()) {
+      setErrorMessage('Missing email or password. Please start signup from the main signup page.')
+      setStatus('error')
+      return
+    }
+    setStatus('loading')
+    const payload = {
+      type: 'business' as const,
+      email: form.email.trim(),
+      password,
+      contactName: form.contactName?.trim() ?? '',
+      companyName: form.organizationName?.trim() ?? '',
+      organizationType: form.organizationType ?? '',
+      industry: form.industry ?? '',
+      companySize: form.companySize ?? '',
+      annualBudgetBand: form.annualBudgetBand ?? '',
+      operatingRegion: form.operatingRegion ?? '',
+      decisionMakerRole: form.decisionMakerRole ?? '',
+      decisionMakerSeniority: form.decisionMakerSeniority ?? '',
+      expertEngagementsPerYear: form.expertEngagementsPerYear ?? '',
+      averageBudgetPerEngagement: form.averageBudgetPerEngagement ?? '',
+      typicalEventTypes: form.typicalEventTypes ?? [],
+      typicalAudienceRole: form.typicalAudienceRole ?? '',
+      audienceSeniority: form.audienceSeniority ?? '',
+      audienceKnowledgeLevel: form.audienceKnowledgeLevel ?? 3,
+      preferredSessionDuration: form.preferredSessionDuration ?? '',
+      preferredDeliveryMode: form.preferredDeliveryMode ?? '',
+      typicalOutcomes: form.typicalOutcomes ?? [],
+      interactivityPreference: form.interactivityPreference ?? 3,
+      riskSensitivity: form.riskSensitivity ?? 'Medium',
+      experimentalOpenness: form.experimentalOpenness ?? 3,
+      outcomeMeasurementPreference: form.outcomeMeasurementPreference ?? '',
+      phone: form.phone ?? '',
+      message: form.message ?? '',
+      website: form.website ?? '',
+      preferredRegions: form.preferredRegions ?? [],
+    }
+    const result = await dispatch(signUp(payload))
+    if (signUp.fulfilled.match(result)) {
       setStatus('success')
       setStep(4)
+    } else {
+      setErrorMessage(result.payload ?? 'Signup failed.')
+      setStatus('error')
     }
   }
 
@@ -171,8 +222,8 @@ export function BusinessSignupPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900">Organization Information</h2>
               <p className="text-sm text-gray-500 mt-0.5 mb-5">Tell us about your company</p>
-              {status === 'error' && errorMessage && (
-                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{errorMessage}</div>
+              {status === 'error' && displayError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{displayError}</div>
               )}
               <div className="space-y-4">
                 <div>
@@ -215,8 +266,8 @@ export function BusinessSignupPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900">Event Behavior</h2>
               <p className="text-sm text-gray-500 mt-0.5 mb-5">Help us understand your needs</p>
-              {status === 'error' && errorMessage && (
-                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{errorMessage}</div>
+              {status === 'error' && displayError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{displayError}</div>
               )}
               <div className="space-y-6">
                 <div>
@@ -258,8 +309,8 @@ export function BusinessSignupPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900">Preferences</h2>
               <p className="text-sm text-gray-500 mt-0.5 mb-5">Set your default preferences</p>
-              {status === 'error' && errorMessage && (
-                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{errorMessage}</div>
+              {status === 'error' && displayError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{displayError}</div>
               )}
               <div className="space-y-6">
                 <div>
@@ -291,8 +342,8 @@ export function BusinessSignupPage() {
               </div>
               <div className="border-t border-gray-200 mt-6 pt-6 flex items-center justify-between">
                 <button type="button" onClick={handlePrevious} className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50">Back</button>
-                <button type="button" onClick={handleContinue} disabled={!isStep3Valid()} className="px-5 py-2.5 rounded-lg bg-[#008C9E] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
-                  Continue
+                <button type="button" onClick={handleContinue} disabled={!isStep3Valid() || loading} className="px-5 py-2.5 rounded-lg bg-[#008C9E] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {loading ? 'Creating account…' : 'Continue'}
                 </button>
               </div>
             </div>

@@ -1,22 +1,54 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarItems, businessSidebarBottomItems } from '../../config/businessNav'
 import { IconDocument, IconUsers, IconTrendingUp } from '../../components/layout/DashboardIcons'
-
-const METRIC_CARDS = [
-  { value: '5', label: 'Active Requirements', icon: IconDocument, subtitle: '+2 this week', subtitleTeal: true, subtitleIcon: 'arrow' as const },
-  { value: '24', label: 'Expert Matches', icon: IconUsers, subtitle: '8 new today', subtitleTeal: true, subtitleIcon: 'sparkle' as const },
-  { value: '18', label: 'Proposals Received', icon: IconDocument, subtitle: 'Pending review', subtitleTeal: false, subtitleIcon: null },
-  { value: '92%', label: 'Match Quality', icon: IconTrendingUp, subtitle: 'Above average', subtitleTeal: true, subtitleIcon: null },
-]
+import { listRequirements, type RequirementResponse } from '../../api/requirements'
+import { listProposalsByRequirement } from '../../api/proposals'
 
 const TEAL = '#2293B4'
 
-const REQUIREMENTS = [
-  { id: '1', title: 'AI Training for Sales Team', matches: 8, timeAgo: '2d ago', status: 'Matching' as const },
-  { id: '2', title: 'Leadership Workshop for Managers', matches: 12, timeAgo: '5d ago', status: 'Active' as const },
-  { id: '3', title: 'Strategic Planning Consultation', matches: 6, timeAgo: '1d ago', status: 'In Review' as const },
-]
+type RequirementCardStatus = 'Active' | 'In Review'
+
+const OUTCOME_TITLES: Record<string, string> = {
+  'skill-development': 'Skill Development',
+  'revenue-generation': 'Revenue Generation',
+  'hiring-talent': 'Hiring & Talent',
+  'brand-positioning': 'Brand Positioning',
+  'leadership-alignment': 'Leadership Alignment',
+  'innovation-problem-solving': 'Innovation & Problem Solving',
+  'compliance-risk': 'Compliance & Risk',
+  'community-networking': 'Community & Networking',
+  'product-adoption': 'Product Adoption',
+  'behavior-change': 'Behavior Change',
+}
+
+function getTitleFromFormData(formData: Record<string, unknown>): string {
+  const outcome = formData?.selectedOutcome as string | undefined
+  if (outcome && OUTCOME_TITLES[outcome]) return OUTCOME_TITLES[outcome]
+  const objective = (formData?.objective as string | undefined)?.trim()
+  if (objective) return objective
+  const audience = formData?.audienceSelected as string[] | undefined
+  if (Array.isArray(audience) && audience.length > 0) return `${audience.slice(0, 2).join(', ')} engagement`
+  return 'Expert requirement'
+}
+
+function getRelativeTime(createdAt: string): string {
+  const created = new Date(createdAt)
+  const diffMs = Date.now() - created.getTime()
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+  if (diffDays <= 0) return 'today'
+  if (diffDays < 7) return `${diffDays}d ago`
+  const diffWeeks = Math.floor(diffDays / 7)
+  if (diffWeeks < 5) return `${diffWeeks}w ago`
+  const diffMonths = Math.floor(diffDays / 30)
+  return `${diffMonths}mo ago`
+}
+
+function toRequirementStatus(requirement: RequirementResponse, proposalCount: number): RequirementCardStatus {
+  if (requirement.status === 'published' && proposalCount > 0) return 'In Review'
+  return 'Active'
+}
 
 const ACTIVITIES = [
   { description: 'New proposal from Sarah Johnson for AI Training', time: '2 hours ago' },
@@ -25,6 +57,127 @@ const ACTIVITIES = [
 ]
 
 export function Dashboard() {
+  const [requirements, setRequirements] = useState<RequirementResponse[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [proposalCountByRequirementId, setProposalCountByRequirementId] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    listRequirements()
+      .then((res) => {
+        if (cancelled) return
+        if (res.success && Array.isArray(res.requirements)) {
+          setRequirements(res.requirements)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Failed to load dashboard data')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (requirements.length === 0) {
+      setProposalCountByRequirementId({})
+      return
+    }
+    let cancelled = false
+    Promise.all(
+      requirements.map(async (requirement) => {
+        try {
+          const response = await listProposalsByRequirement(requirement.id, { limit: 1, skip: 0 })
+          return [requirement.id, response.success ? response.total ?? 0 : 0] as const
+        } catch {
+          return [requirement.id, 0] as const
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return
+      setProposalCountByRequirementId(Object.fromEntries(entries))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [requirements])
+
+  const activeRequirements = useMemo(
+    () =>
+      requirements
+        .filter((r) => r.status !== 'draft')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [requirements]
+  )
+
+  const proposalsReceived = useMemo(
+    () =>
+      activeRequirements.reduce(
+        (total, requirement) => total + (proposalCountByRequirementId[requirement.id] ?? 0),
+        0
+      ),
+    [activeRequirements, proposalCountByRequirementId]
+  )
+
+  const activeThisWeek = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return activeRequirements.filter((r) => new Date(r.createdAt).getTime() >= weekAgo).length
+  }, [activeRequirements])
+
+  const activeRequirementCards = useMemo(
+    () =>
+      activeRequirements.slice(0, 3).map((r) => {
+        const proposalCount = proposalCountByRequirementId[r.id] ?? 0
+        return {
+          id: r.id,
+          title: getTitleFromFormData(r.formData || {}),
+          matches: proposalCount,
+          timeAgo: getRelativeTime(r.createdAt),
+          status: toRequirementStatus(r, proposalCount),
+        }
+      }),
+    [activeRequirements, proposalCountByRequirementId]
+  )
+
+  const metricCards = [
+    {
+      value: String(activeRequirements.length),
+      label: 'Active Requirements',
+      icon: IconDocument,
+      subtitle: `${activeThisWeek} this week`,
+      subtitleTeal: true,
+      subtitleIcon: 'arrow' as const,
+    },
+    {
+      value: '24',
+      label: 'Expert Matches',
+      icon: IconUsers,
+      subtitle: '8 new today',
+      subtitleTeal: true,
+      subtitleIcon: 'sparkle' as const,
+    },
+    {
+      value: String(proposalsReceived),
+      label: 'Proposals Received',
+      icon: IconDocument,
+      subtitle: 'Across active requirements',
+      subtitleTeal: false,
+      subtitleIcon: null,
+    },
+    {
+      value: '92%',
+      label: 'Match Quality',
+      icon: IconTrendingUp,
+      subtitle: 'Above average',
+      subtitleTeal: true,
+      subtitleIcon: null,
+    },
+  ]
+
   return (
     <DashboardLayout sidebarItems={businessSidebarItems} sidebarBottomItems={businessSidebarBottomItems} userTypeLabel="Business" userDisplayName="Acme Corp" userSubLabel="Business Account" sidebarClassName="bg-gray-50">
       <div className="max-w-6xl mx-auto">
@@ -46,7 +199,7 @@ export function Dashboard() {
           </Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {METRIC_CARDS.map(({ value, label, icon: Icon, subtitle, subtitleTeal, subtitleIcon }) => (
+          {metricCards.map(({ value, label, icon: Icon, subtitle, subtitleTeal, subtitleIcon }) => (
             <div key={label} className="bg-white rounded-xl border border-gray-100 px-5 py-4 shadow-sm flex flex-col">
               <div className="flex items-start justify-between gap-2">
                 <span className="flex items-center justify-center shrink-0" style={{ color: TEAL }}>
@@ -86,41 +239,52 @@ export function Dashboard() {
                 </svg>
               </Link>
             </div>
-            <div className="space-y-4">
-              {REQUIREMENTS.map((r) => (
-                <Link
-                  key={r.id}
-                  to={`/business/requirement/${r.id}`}
-                  className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:border-gray-300 transition-colors no-underline"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-2">{r.title}</h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span className="inline-flex items-center gap-1.5 text-gray-500 [&_svg]:w-4 [&_svg]:h-4 [&_svg]:text-gray-400">
-                          <IconUsers />
-                          {r.matches} matches
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 text-gray-500">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-400">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                          </svg>
-                          {r.timeAgo}
-                        </span>
+            {loadError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {loadError}
+              </div>
+            )}
+            {loading ? (
+              <div className="py-8 text-sm text-gray-500">Loading requirements...</div>
+            ) : activeRequirementCards.length === 0 ? (
+              <div className="py-8 text-sm text-gray-500">No active requirements yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {activeRequirementCards.map((r) => (
+                  <Link
+                    key={r.id}
+                    to={`/business/requirement/${r.id}`}
+                    className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:border-gray-300 transition-colors no-underline"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 mb-2">{r.title}</h3>
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                          <span className="inline-flex items-center gap-1.5 text-gray-500 [&_svg]:w-4 [&_svg]:h-4 [&_svg]:text-gray-400">
+                            <IconUsers />
+                            {r.matches} matches
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-gray-500">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-400">
+                              <circle cx="12" cy="12" r="10" />
+                              <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {r.timeAgo}
+                          </span>
+                        </div>
                       </div>
+                      <span
+                        className={`shrink-0 inline-flex px-2.5 py-1 rounded-md text-xs font-medium ${
+                          r.status === 'Active' ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {r.status}
+                      </span>
                     </div>
-                    <span
-                      className={`shrink-0 inline-flex px-2.5 py-1 rounded-md text-xs font-medium ${
-                        r.status === 'Active' ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      {r.status}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
           <div className="w-full lg:w-80 shrink-0 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-5">Recent Activity</h2>
