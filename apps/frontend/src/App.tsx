@@ -30,6 +30,10 @@ import { ExpertAnalytics } from './pages/expert/Analytics'
 import { ExpertEarnings } from './pages/expert/Earnings'
 import { ExpertSettings } from './pages/expert/Settings'
 import { ProtectedRoute, PublicOnlyRoute } from './components/routing/RouteGuards'
+import { LandingV2 } from './pages/LandingV2'
+import { ExpertDealEngineV2 } from './pages/ExpertDealEngineV2'
+import { SolutionsV2 } from './pages/SolutionsV2'
+import { PricingV2 } from './pages/PricingV2'
 
 function HomePage() {
   return (
@@ -55,6 +59,10 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/landing-v2" element={<LandingV2 />} />
+        <Route path="/landing-v2/expert-network" element={<ExpertDealEngineV2 />} />
+        <Route path="/landing-v2/solutions" element={<SolutionsV2 />} />
+        <Route path="/landing-v2/pricing" element={<PricingV2 />} />
         <Route element={<PublicOnlyRoute />}>
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/signup" element={<SignupPage />} />
